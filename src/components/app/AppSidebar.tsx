@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, LayoutDashboard, LogOut } from "lucide-react";
+import { Activity, LayoutDashboard, LogOut, Workflow } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/sidebar";
 import { appColor } from "@/lib/apps";
 import { useHierarchy } from "./hierarchy";
+import { GhlSection } from "./GhlSection";
 
 const GROUP_LABEL =
   "h-7 px-2 text-[10px] font-semibold tracking-[0.02em] text-t3";
@@ -72,6 +73,19 @@ export function AppSidebar() {
                   <Link href="/dashboard">
                     <LayoutDashboard className="!size-[15px]" />
                     <span>Dashboard</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === "/unified"}
+                  tooltip="Unified view"
+                  className={ITEM}
+                >
+                  <Link href="/unified">
+                    <Workflow className="!size-[15px]" />
+                    <span>Unified view</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -150,6 +164,8 @@ export function AppSidebar() {
             </SidebarGroup>
           );
         })}
+
+        <GhlSection />
 
         {loading && (
           <SidebarGroup className="group-data-[collapsible=icon]:hidden">

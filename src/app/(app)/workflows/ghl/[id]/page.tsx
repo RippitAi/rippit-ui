@@ -1,24 +1,19 @@
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { loadCredentials } from "@/app/lib/credentials";
 import { appColor, appName } from "@/lib/apps";
 import {
-  fetchScenarioDetail,
-  fetchScenarioSummary,
-  fetchModuleDetail,
-  ScenarioDetail,
-  ScenarioSummary,
-  ModuleDetail,
+  fetchGhlWorkflowSummary,
+  fetchGhlStepDetail,
+  GhlWorkflowSummary,
   NodeId,
 } from "@/app/lib/api";
 import ScenarioCanvas from "@/components/canvas/ScenarioCanvas";
-import ModuleDetailPanel from "./ModuleDetailPanel";
+import StepDetailPanel, { GhlStep } from "./StepDetailPanel";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -33,60 +28,43 @@ function StatChip({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default function ScenarioPage({
+export default function GhlWorkflowPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const router = useRouter();
-  const [detail, setDetail] = useState<ScenarioDetail | null>(null);
-  const [summary, setSummary] = useState<ScenarioSummary | null>(null);
+  const [summary, setSummary] = useState<GhlWorkflowSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [selectedModule, setSelectedModule] = useState<ModuleDetail | null>(null);
-  const [moduleLoading, setModuleLoading] = useState(false);
+  const [selectedId, setSelectedId] = useState<NodeId | null>(null);
+  const [selectedStep, setSelectedStep] = useState<GhlStep | null>(null);
+  const [stepLoading, setStepLoading] = useState(false);
 
   useEffect(() => {
-    const creds = loadCredentials();
-    if (!creds) {
-      router.push("/");
-      return;
-    }
-
-    const scenarioId = parseInt(id);
-    Promise.all([
-      fetchScenarioDetail(creds, scenarioId),
-      fetchScenarioSummary(creds, scenarioId),
-    ])
-      .then(([d, s]) => {
-        setDetail(d);
-        setSummary(s);
-      })
+    fetchGhlWorkflowSummary(id)
+      .then(setSummary)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [id, router]);
+  }, [id]);
 
   const handleNodeClick = useCallback(
     (nodeId: NodeId) => {
-      const scenarioId = parseInt(id);
-      const moduleId = Number(nodeId); // Make module ids are always numeric
-      setSelectedId(moduleId);
-      setModuleLoading(true);
-      setSelectedModule(null);
-      fetchModuleDetail(scenarioId, moduleId)
-        .then(setSelectedModule)
-        .catch(() => setSelectedModule(null))
-        .finally(() => setModuleLoading(false));
+      setSelectedId(nodeId);
+      setStepLoading(true);
+      setSelectedStep(null);
+      fetchGhlStepDetail(id, String(nodeId))
+        .then(setSelectedStep)
+        .catch(() => setSelectedStep(null))
+        .finally(() => setStepLoading(false));
     },
     [id]
   );
 
   const closePanel = useCallback(() => {
     setSelectedId(null);
-    setSelectedModule(null);
-    setModuleLoading(false);
+    setSelectedStep(null);
+    setStepLoading(false);
   }, []);
 
   if (loading) {
@@ -94,7 +72,7 @@ export default function ScenarioPage({
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
           <div className="mx-auto size-7 animate-spin rounded-full border-2 border-t1 border-t-transparent" />
-          <p className="mt-3 text-[12px] text-t3">Loading scenario…</p>
+          <p className="mt-3 text-[12px] text-t3">Loading workflow…</p>
         </div>
       </div>
     );
@@ -108,7 +86,7 @@ export default function ScenarioPage({
             !
           </div>
           <h2 className="mb-1.5 text-[14px] font-semibold">
-            Failed to load scenario
+            Failed to load workflow
           </h2>
           <p className="mb-4 text-[12px] text-t2">{error}</p>
           <Link
@@ -122,13 +100,14 @@ export default function ScenarioPage({
     );
   }
 
-  if (!detail || !summary) return null;
+  if (!summary) return null;
 
-  const st = detail.isActive
-    ? detail.isPaused
-      ? { color: "#f59e0b", bg: "rgba(245,158,11,.1)", border: "rgba(245,158,11,.32)", label: "Paused" }
-      : { color: "#22c55e", bg: "rgba(34,197,94,.1)", border: "rgba(34,197,94,.3)", label: "Active" }
-    : { color: "#a1a1aa", bg: "rgba(128,128,140,.1)", border: "rgba(128,128,140,.3)", label: "Inactive" };
+  const st =
+    summary.status === "published"
+      ? { color: "#22c55e", bg: "rgba(34,197,94,.1)", border: "rgba(34,197,94,.3)", label: "Published" }
+      : { color: "#a1a1aa", bg: "rgba(128,128,140,.1)", border: "rgba(128,128,140,.3)", label: summary.status || "Draft" };
+
+  const triggerCount = summary.modules.filter((m) => m.kind === "trigger").length;
 
   return (
     <div
@@ -147,10 +126,10 @@ export default function ScenarioPage({
         <div className="h-[18px] w-px bg-line" />
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="truncate text-[13px] font-semibold tracking-[-0.01em]">
-            {detail.name}
+            {summary.name}
           </span>
           <span
-            className="flex-none rounded-full border px-[9px] py-[3px] text-[10px] font-semibold"
+            className="flex-none rounded-full border px-[9px] py-[3px] text-[10px] font-semibold capitalize"
             style={{ color: st.color, background: st.bg, borderColor: st.border }}
           >
             {st.label}
@@ -158,22 +137,16 @@ export default function ScenarioPage({
         </div>
         <div className="flex-1" />
         <div className="hidden items-center gap-3.5 md:flex">
-          <StatChip label="Modules" value={String(summary.totalModules)} />
+          <StatChip
+            label="Steps"
+            value={String(summary.totalModules - triggerCount)}
+          />
           <div className="h-[22px] w-px bg-line" />
-          <StatChip label="Apps" value={String(summary.appsUsed.length)} />
+          <StatChip label="Triggers" value={String(triggerCount)} />
           <div className="h-[22px] w-px bg-line" />
           <StatChip
             label="Connections"
             value={String(summary.connections.length)}
-          />
-          <div className="h-[22px] w-px bg-line" />
-          <StatChip
-            label="Last edit"
-            value={
-              detail.lastEdit
-                ? new Date(detail.lastEdit).toLocaleDateString()
-                : "—"
-            }
           />
         </div>
       </header>
@@ -187,36 +160,28 @@ export default function ScenarioPage({
           onNodeClick={handleNodeClick}
         />
 
-        {/* floating chip: scenario id + apps used */}
+        {/* floating chip: source badge */}
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: EASE, delay: 0.35 }}
           className="pointer-events-none absolute left-4 top-3 z-[2] flex max-w-[60%] flex-wrap items-center gap-1.5"
         >
-          <span className="rounded-full border border-line bg-glass px-2.5 py-1 font-mono text-[10px] text-t3 backdrop-blur-[8px]">
-            #{detail.id}
-          </span>
-          {summary.appsUsed.map((app) => (
+          <span className="flex items-center gap-1.5 rounded-full border border-line bg-glass px-2.5 py-1 text-[10px] font-semibold text-t2 backdrop-blur-[8px]">
             <span
-              key={app}
-              className="flex items-center gap-1.5 rounded-full border border-line bg-glass px-2.5 py-1 text-[10px] font-semibold text-t2 backdrop-blur-[8px]"
-            >
-              <span
-                className="size-[7px] rounded-[2px]"
-                style={{ background: appColor(app) }}
-              />
-              {appName(app)}
-            </span>
-          ))}
+              className="size-[7px] rounded-[2px]"
+              style={{ background: appColor("ghl") }}
+            />
+            {appName("ghl")}
+          </span>
         </motion.div>
 
         <AnimatePresence>
-          {(selectedModule || moduleLoading) && (
-            <ModuleDetailPanel
+          {(selectedStep || stepLoading) && (
+            <StepDetailPanel
               key="panel"
-              module={selectedModule}
-              loading={moduleLoading}
+              step={selectedStep}
+              loading={stepLoading}
               onClose={closePanel}
             />
           )}

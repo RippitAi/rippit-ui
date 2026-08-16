@@ -16,7 +16,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { appColor, appGlyph, appName } from "@/lib/apps";
-import type { ModuleInfo, Connection } from "@/app/lib/api";
+import type {
+  ModuleInfo,
+  Connection,
+  NodeId,
+  UnifiedGroup,
+} from "@/app/lib/api";
 
 const POP_EASE = [0.34, 1.56, 0.64, 1] as const;
 const NODE_HALF = 70; // wrapper is 140 wide, puck centered
@@ -31,8 +36,20 @@ const COS_TILT = 0.5736; // cos 55°
    inspector panel that opens on selection). */
 const CENTER_INSETS = { left: 20, right: 392, top: 70, bottom: 20 };
 
+/* Edge kinds that must not shape the layered layout: goto is a loop back-edge
+   (would corrupt Kahn columns); the cross-system kinds connect separate
+   workflow groups that lay out independently. All are still rendered. */
+const CROSS_KINDS = new Set(["webhook-call", "api-call", "subflow"]);
+const NON_LAYOUT_KINDS = new Set(["goto", ...CROSS_KINDS]);
+
+/* Group container paddings around a group's node bounding box. */
+const GROUP_PAD_X = 110;
+const GROUP_PAD_TOP = 96;
+const GROUP_PAD_BOTTOM = 64;
+const GROUP_GAP = 200;
+
 interface CanvasNode {
-  id: number;
+  id: NodeId;
   cx: number;
   cy: number;
   col: number;
@@ -43,24 +60,40 @@ interface CanvasNode {
   hasFilter: boolean;
   filterName: string | null;
   hasErrorHandler: boolean;
+  badge?: string;
+}
+
+interface GroupBox {
+  id: string;
+  name: string;
+  source: "make" | "ghl";
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 
 /*
  * Layered left-to-right layout computed from the connection graph.
  * Make.com designer coordinates are ignored on purpose — real blueprints
  * scatter modules across thousands of pixels, which forces the fit zoom
- * so far out that pucks and edges become unreadable.
+ * so far out that pucks and edges become unreadable. GHL workflows carry
+ * no coordinates at all, so the graph is the only source of truth.
  */
-function computeLayout(modules: ModuleInfo[], connections: Connection[]) {
+function layoutGraph(modules: ModuleInfo[], connections: Connection[]) {
   const ids = modules.map((m) => m.id);
   const idSet = new Set(ids);
   const conns = connections.filter(
-    (c) => idSet.has(c.from) && idSet.has(c.to) && c.from !== c.to
+    (c) =>
+      idSet.has(c.from) &&
+      idSet.has(c.to) &&
+      c.from !== c.to &&
+      !NON_LAYOUT_KINDS.has(c.kind ?? "")
   );
 
-  const out = new Map<number, number[]>();
-  const parents = new Map<number, number[]>();
-  const indeg = new Map<number, number>();
+  const out = new Map<NodeId, NodeId[]>();
+  const parents = new Map<NodeId, NodeId[]>();
+  const indeg = new Map<NodeId, number>();
   for (const id of ids) {
     out.set(id, []);
     parents.set(id, []);
@@ -74,7 +107,7 @@ function computeLayout(modules: ModuleInfo[], connections: Connection[]) {
 
   /* Column = longest path from a root (Kahn's algorithm; cycle leftovers
      land in column 0). */
-  const col = new Map<number, number>();
+  const col = new Map<NodeId, number>();
   const deg = new Map(indeg);
   const queue = ids.filter((id) => deg.get(id) === 0);
   for (const id of queue) col.set(id, 0);
@@ -89,7 +122,7 @@ function computeLayout(modules: ModuleInfo[], connections: Connection[]) {
   for (const id of ids) if (!col.has(id)) col.set(id, 0);
 
   /* Weakly-connected components, stacked vertically. */
-  const comp = new Map<number, number>();
+  const comp = new Map<NodeId, number>();
   let compCount = 0;
   for (const id of ids) {
     if (comp.has(id)) continue;
@@ -107,13 +140,13 @@ function computeLayout(modules: ModuleInfo[], connections: Connection[]) {
     compCount++;
   }
 
-  const posOf = new Map<number, { cx: number; cy: number; col: number }>();
-  const row = new Map<number, number>();
+  const posOf = new Map<NodeId, { cx: number; cy: number; col: number }>();
+  const row = new Map<NodeId, number>();
   let yOffset = 0;
 
   for (let ci = 0; ci < compCount; ci++) {
     const members = ids.filter((id) => comp.get(id) === ci);
-    const byCol = new Map<number, number[]>();
+    const byCol = new Map<number, NodeId[]>();
     for (const id of members) {
       const c = col.get(id)!;
       if (!byCol.has(c)) byCol.set(c, []);
@@ -128,7 +161,7 @@ function computeLayout(modules: ModuleInfo[], connections: Connection[]) {
       const keyed = group.map((id, i) => {
         const ps = parents.get(id)!.filter((p) => row.has(p));
         const bary = ps.length
-          ? ps.reduce((s, p) => s + row.get(p)!, 0) / ps.length
+          ? ps.reduce((s: number, p) => s + row.get(p)!, 0) / ps.length
           : i;
         return { id, bary, i };
       });
@@ -171,10 +204,108 @@ function computeLayout(modules: ModuleInfo[], connections: Connection[]) {
   };
 }
 
+/*
+ * Group-aware layout. Without groups this is layoutGraph unchanged. With
+ * groups (the unified view), each group lays out independently with the same
+ * algorithm, groups are ordered topologically over the cross-edge graph
+ * (sources above targets, so cross-edges stay short), stacked vertically,
+ * and each gets a container box around its nodes.
+ */
+function computeLayout(
+  modules: ModuleInfo[],
+  connections: Connection[],
+  groups?: UnifiedGroup[]
+) {
+  if (!groups || groups.length === 0) {
+    return { ...layoutGraph(modules, connections), groupBoxes: [] as GroupBox[] };
+  }
+
+  const groupOf = (id: NodeId): string | undefined =>
+    groups.find((g) => String(id).startsWith(`${g.id}:`))?.id;
+
+  /* Topological order over group-level cross-edges (Kahn; cycles fall back
+     to insertion order). */
+  const indeg = new Map<string, number>(groups.map((g) => [g.id, 0]));
+  const out = new Map<string, string[]>(groups.map((g) => [g.id, []]));
+  const seen = new Set<string>();
+  for (const c of connections) {
+    if (!CROSS_KINDS.has(c.kind ?? "")) continue;
+    const a = groupOf(c.from);
+    const b = groupOf(c.to);
+    if (!a || !b || a === b || seen.has(`${a}→${b}`)) continue;
+    seen.add(`${a}→${b}`);
+    out.get(a)!.push(b);
+    indeg.set(b, (indeg.get(b) || 0) + 1);
+  }
+  const ordered: string[] = [];
+  const queue = groups.filter((g) => indeg.get(g.id) === 0).map((g) => g.id);
+  const deg = new Map(indeg);
+  while (queue.length) {
+    const id = queue.shift()!;
+    ordered.push(id);
+    for (const next of out.get(id)!) {
+      deg.set(next, deg.get(next)! - 1);
+      if (deg.get(next) === 0) queue.push(next);
+    }
+  }
+  for (const g of groups) if (!ordered.includes(g.id)) ordered.push(g.id);
+
+  const posOf = new Map<NodeId, { cx: number; cy: number; col: number }>();
+  const groupBoxes: GroupBox[] = [];
+  let yOffset = 0;
+  let maxCol = 0;
+  let maxW = 0;
+
+  for (const gid of ordered) {
+    const group = groups.find((g) => g.id === gid)!;
+    const members = modules.filter((m) => String(m.id).startsWith(`${gid}:`));
+    if (members.length === 0) continue;
+    const memberIds = new Set(members.map((m) => m.id));
+    const internal = connections.filter(
+      (c) => memberIds.has(c.from) && memberIds.has(c.to)
+    );
+    const sub = layoutGraph(members, internal);
+
+    let minX = Infinity,
+      maxX = -Infinity,
+      minY = Infinity,
+      maxY = -Infinity;
+    for (const [id, p] of sub.posOf) {
+      posOf.set(id, { cx: p.cx, cy: p.cy + yOffset, col: p.col });
+      minX = Math.min(minX, p.cx);
+      maxX = Math.max(maxX, p.cx);
+      minY = Math.min(minY, p.cy + yOffset);
+      maxY = Math.max(maxY, p.cy + yOffset);
+    }
+    groupBoxes.push({
+      id: gid,
+      name: group.name,
+      source: group.source,
+      x: minX - GROUP_PAD_X,
+      y: minY - GROUP_PAD_TOP,
+      w: maxX - minX + GROUP_PAD_X * 2,
+      h: maxY - minY + GROUP_PAD_TOP + GROUP_PAD_BOTTOM,
+    });
+    maxCol = Math.max(maxCol, sub.maxCol);
+    maxW = Math.max(maxW, sub.w);
+    yOffset += sub.h + GROUP_GAP - MARGIN_Y;
+  }
+
+  return {
+    posOf,
+    maxCol,
+    w: maxW,
+    h: Math.max(ROW_H, yOffset - GROUP_GAP + MARGIN_Y * 2),
+    groupBoxes,
+  };
+}
+
 interface EdgeView {
   key: number;
   d: string;
   label?: string;
+  kind?: string;
+  status?: string;
   mx: number;
   my: number;
   t0: number;
@@ -313,20 +444,22 @@ function ClusterButton({
 export default function ScenarioCanvas({
   modules,
   connections,
+  groups,
   selectedId,
   onNodeClick,
 }: {
   modules: ModuleInfo[];
   connections: Connection[];
-  selectedId?: number | null;
-  onNodeClick?: (moduleId: number) => void;
+  groups?: UnifiedGroup[];
+  selectedId?: NodeId | null;
+  onNodeClick?: (moduleId: NodeId) => void;
 }) {
   const [cam, setCam] = useState({ zoom: 0.5, panX: 0, panY: 0 });
   const [drag, setDrag] = useState(false);
   const [glide, setGlide] = useState(false);
   const [tilt, setTilt] = useState(true);
-  const [dragId, setDragId] = useState<number | null>(null);
-  const [pos, setPos] = useState<Record<number, { cx: number; cy: number }>>({});
+  const [dragId, setDragId] = useState<NodeId | null>(null);
+  const [pos, setPos] = useState<Record<NodeId, { cx: number; cy: number }>>({});
 
   const vp = useRef<HTMLDivElement | null>(null);
   const panData = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
@@ -334,7 +467,7 @@ export default function ScenarioCanvas({
   const last = useRef({ x: 0, y: 0, t: 0 });
   const raf = useRef(0);
   const nd = useRef<{
-    id: number;
+    id: NodeId;
     sx: number;
     sy: number;
     cx: number;
@@ -347,8 +480,8 @@ export default function ScenarioCanvas({
   }, [tilt]);
 
   const layout = useMemo(
-    () => computeLayout(modules, connections),
-    [modules, connections]
+    () => computeLayout(modules, connections, groups),
+    [modules, connections, groups]
   );
   const ox = layout.w / 2;
   const oy = layout.h / 2;
@@ -374,6 +507,7 @@ export default function ScenarioCanvas({
           hasFilter: m.hasFilter,
           filterName: m.filterName,
           hasErrorHandler: m.hasErrorHandler,
+          badge: m.badge,
         };
       }),
     [modules, layout, pos]
@@ -404,6 +538,8 @@ export default function ScenarioCanvas({
             key: i,
             d: `M${sx} ${sy} C${sx + dx} ${sy}, ${tx - dx} ${ty}, ${tx} ${ty}`,
             label: c.label,
+            kind: c.kind,
+            status: c.status,
             mx,
             my,
             t0,
@@ -411,6 +547,13 @@ export default function ScenarioCanvas({
           };
         }),
     [connections, byId]
+  );
+
+  /* Loop back-edges and cross-system edges don't carry pulses — their
+     t-slots are keyed to columns within a single flow. */
+  const pulseEdges = useMemo(
+    () => edges.filter((e) => !NON_LAYOUT_KINDS.has(e.kind ?? "")),
+    [edges]
   );
 
   /* ---------- camera ---------- */
@@ -452,7 +595,7 @@ export default function ScenarioCanvas({
   }, [fit]);
 
   const centerOn = useCallback(
-    (id: number) => {
+    (id: NodeId) => {
       const el = vp.current;
       if (!el) return;
       const n = byId.get(id);
@@ -725,46 +868,27 @@ export default function ScenarioCanvas({
             transformStyle: "preserve-3d",
           }}
         >
-          {/* edges */}
-          <svg
-            className="pointer-events-none absolute inset-0"
-            style={{ overflow: "visible" }}
-            width={1}
-            height={1}
-          >
-            {edges.map((e) => (
-              <g key={e.key}>
-                <path
-                  d={e.d}
-                  fill="none"
-                  stroke="var(--edge)"
-                  strokeWidth={1.5}
-                />
-                <path
-                  d={e.d}
-                  fill="none"
-                  stroke="var(--driftc)"
-                  strokeWidth={1.5}
-                  strokeLinecap="round"
-                  strokeDasharray="3 23"
-                  style={{ animation: "ddrift 1.5s linear infinite" }}
-                />
-              </g>
-            ))}
-          </svg>
-
-          <PulseLayer edges={edges} cycle={cycle} />
-
-          {/* edge label pills — billboarded so text stays face-on in 3D */}
-          {edges
-            .filter((e) => e.label)
-            .map((e) => (
+          {/* group containers — behind everything, on the plane */}
+          {layout.groupBoxes.map((g) => (
+            <div key={g.id}>
               <div
-                key={`l${e.key}`}
+                className="absolute rounded-card border"
+                style={{
+                  left: g.x,
+                  top: g.y,
+                  width: g.w,
+                  height: g.h,
+                  borderColor: "var(--line)",
+                  background:
+                    "color-mix(in srgb, var(--panel) 40%, transparent)",
+                }}
+              />
+              {/* label chip — billboarded so it faces the camera in 3D */}
+              <div
                 className="pointer-events-none absolute"
                 style={{
-                  left: e.mx,
-                  top: e.my,
+                  left: g.x + 18,
+                  top: g.y + 2,
                   transformStyle: "preserve-3d",
                 }}
               >
@@ -775,12 +899,118 @@ export default function ScenarioCanvas({
                     transition: worldTrans,
                   }}
                 >
-                  <div className="max-w-[180px] -translate-x-1/2 -translate-y-1/2 truncate rounded-full border border-line bg-pill px-2.5 py-[3px] text-[10px] font-semibold text-t2 shadow-[0_4px_14px_var(--shade)]">
-                    {e.label}
+                  <div className="flex -translate-y-1/2 items-center gap-2 rounded-full border border-line bg-pill px-3 py-[5px] shadow-[0_4px_14px_var(--shade)]">
+                    <span
+                      className="size-[8px] flex-none rounded-[2px]"
+                      style={{
+                        background: appColor(
+                          g.source === "ghl" ? "ghl" : "make"
+                        ),
+                      }}
+                    />
+                    <span className="max-w-[240px] truncate text-[11px] font-semibold text-t1">
+                      {g.name}
+                    </span>
+                    <span className="font-mono text-[9px] font-semibold uppercase tracking-wide text-t3">
+                      {g.source}
+                    </span>
                   </div>
                 </div>
               </div>
-            ))}
+            </div>
+          ))}
+
+          {/* edges */}
+          <svg
+            className="pointer-events-none absolute inset-0"
+            style={{ overflow: "visible" }}
+            width={1}
+            height={1}
+          >
+            {edges.map((e) => {
+              const isGoto = e.kind === "goto";
+              const isCross = CROSS_KINDS.has(e.kind ?? "");
+              const isDead = e.status === "dead";
+              const stroke = isCross
+                ? isDead
+                  ? "#ef4444"
+                  : "#f59e0b"
+                : "var(--edge)";
+              return (
+                <g key={e.key} opacity={isGoto ? 0.55 : 1}>
+                  <path
+                    d={e.d}
+                    fill="none"
+                    stroke={stroke}
+                    strokeWidth={isCross ? 2 : 1.5}
+                    strokeDasharray={
+                      isGoto ? "6 6" : isCross ? "8 6" : undefined
+                    }
+                  />
+                  {!isGoto && !isCross && (
+                    <path
+                      d={e.d}
+                      fill="none"
+                      stroke="var(--driftc)"
+                      strokeWidth={1.5}
+                      strokeLinecap="round"
+                      strokeDasharray="3 23"
+                      style={{ animation: "ddrift 1.5s linear infinite" }}
+                    />
+                  )}
+                </g>
+              );
+            })}
+          </svg>
+
+          <PulseLayer edges={pulseEdges} cycle={cycle} />
+
+          {/* edge label pills — billboarded so text stays face-on in 3D */}
+          {edges
+            .filter((e) => e.label)
+            .map((e) => {
+              const isCross = CROSS_KINDS.has(e.kind ?? "");
+              const isDead = e.status === "dead";
+              const crossColor = isDead ? "#ef4444" : "#f59e0b";
+              return (
+                <div
+                  key={`l${e.key}`}
+                  className="pointer-events-none absolute"
+                  style={{
+                    left: e.mx,
+                    top: e.my,
+                    transformStyle: "preserve-3d",
+                  }}
+                >
+                  <div
+                    style={{
+                      transform: billT,
+                      transformOrigin: "0 0",
+                      transition: worldTrans,
+                    }}
+                  >
+                    <div
+                      className="max-w-[180px] -translate-x-1/2 -translate-y-1/2 truncate rounded-full border px-2.5 py-[3px] text-[10px] font-semibold shadow-[0_4px_14px_var(--shade)]"
+                      style={
+                        isCross
+                          ? {
+                              color: crossColor,
+                              borderColor: `color-mix(in srgb, ${crossColor} 40%, transparent)`,
+                              background: `color-mix(in srgb, ${crossColor} 12%, var(--pill))`,
+                            }
+                          : {
+                              color: "var(--t2)",
+                              borderColor: "var(--line)",
+                              background: "var(--pill)",
+                            }
+                      }
+                    >
+                      {isDead ? `! ${e.label}` : e.label}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
 
           {/* pucks */}
           {nodes.map((n, i) => {
@@ -877,6 +1107,23 @@ export default function ScenarioCanvas({
                           style={{
                             background: "#ef4444",
                             boxShadow: "0 0 8px #ef4444",
+                          }}
+                        />
+                      )}
+                      {n.badge && (
+                        <div
+                          title={
+                            n.badge === "unmatchedLink"
+                              ? "Webhook target not found in Make"
+                              : "Calls GHL"
+                          }
+                          className="absolute -left-[3px] -top-[3px] size-3 rounded-full border-2 border-plane"
+                          style={{
+                            background:
+                              n.badge === "unmatchedLink"
+                                ? "#ef4444"
+                                : "#f59e0b",
+                            boxShadow: `0 0 8px ${n.badge === "unmatchedLink" ? "#ef4444" : "#f59e0b"}`,
                           }}
                         />
                       )}
