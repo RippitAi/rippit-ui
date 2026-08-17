@@ -66,6 +66,7 @@ export interface ModuleInfo {
   source?: "make" | "ghl";
   kind?: string;
   badge?: string;
+  hookId?: number | null;
 }
 
 export interface Connection {
@@ -193,7 +194,7 @@ export function triggerGhlSync(
   return apiPost(`/ghl/locations/${encodeURIComponent(locationId)}/sync`);
 }
 
-/* ─── Unified graph ────────────────────────────────────────────────────── */
+/* ─── Unified graph groups (canvas grouped-layout contract) ────────────── */
 
 export interface UnifiedGroup {
   id: string; // "make:912" | "ghl:<wfId>" — prefixes its member node ids
@@ -202,24 +203,43 @@ export interface UnifiedGroup {
   refId: string;
 }
 
-export interface UnifiedGraph {
-  groups: UnifiedGroup[];
-  nodes: ModuleInfo[];
-  connections: Connection[];
-  stats: { groups: number; crossLinks: number; deadLinks: number };
+/* ─── Workflow-level link map ──────────────────────────────────────────── */
+
+export interface LinkEnd {
+  source: "make" | "ghl";
+  refId: string;
+  stepId?: string;
+  stepName?: string;
+  hookId?: number;
+  udid?: string;
 }
 
-export function fetchUnifiedGraph(
-  organizationId: number | string,
-  opts?: { scenarioIds?: number[]; workflowIds?: string[] }
-): Promise<UnifiedGraph> {
-  const params = new URLSearchParams();
-  if (opts?.scenarioIds?.length)
-    params.set("scenarioIds", opts.scenarioIds.join(","));
-  if (opts?.workflowIds?.length)
-    params.set("workflowIds", opts.workflowIds.join(","));
-  const q = params.toString();
-  return apiFetch(
-    `/organizations/${organizationId}/unified-graph${q ? `?${q}` : ""}`
-  );
+export interface WorkflowLink {
+  from: LinkEnd;
+  to: LinkEnd;
+  kind: "webhook-call" | "subflow";
+  status: "ok" | "dead";
+}
+
+export interface WorkflowCard {
+  source: "make" | "ghl";
+  refId: string;
+  name: string;
+  status?: string | null;
+  stepCount?: number;
+  isActive?: boolean;
+  talksToGhl?: boolean;
+}
+
+export interface LinkMap {
+  workflows: WorkflowCard[];
+  links: WorkflowLink[];
+  unmatched: (LinkEnd & { udid: string })[];
+  stats: { workflows: number; links: number; deadLinks: number };
+}
+
+export function fetchLinks(
+  organizationId: number | string
+): Promise<LinkMap> {
+  return apiFetch(`/organizations/${organizationId}/links`);
 }

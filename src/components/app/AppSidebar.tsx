@@ -85,7 +85,7 @@ export function AppSidebar() {
                 >
                   <Link href="/unified">
                     <Workflow className="!size-[15px]" />
-                    <span>Unified view</span>
+                    <span>Workflow map</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

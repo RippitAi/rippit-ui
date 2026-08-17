@@ -1,19 +1,30 @@
 "use client";
 
-import { useState, useEffect, useCallback, use } from "react";
+import { useState, useEffect, useCallback, useMemo, use } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { appColor, appName } from "@/lib/apps";
+import { loadCredentials } from "@/app/lib/credentials";
 import {
   fetchGhlWorkflowSummary,
   fetchGhlStepDetail,
+  fetchLinks,
   GhlWorkflowSummary,
+  LinkMap,
   NodeId,
 } from "@/app/lib/api";
+import {
+  parsePortalId,
+  withPortals,
+  workflowHref,
+  WorkflowRef,
+} from "@/lib/portals";
 import ScenarioCanvas from "@/components/canvas/ScenarioCanvas";
 import StepDetailPanel, { GhlStep } from "./StepDetailPanel";
+import { ConnectedChips } from "@/components/canvas/ConnectedChips";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -34,22 +45,47 @@ export default function GhlWorkflowPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const router = useRouter();
   const [summary, setSummary] = useState<GhlWorkflowSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedId, setSelectedId] = useState<NodeId | null>(null);
   const [selectedStep, setSelectedStep] = useState<GhlStep | null>(null);
   const [stepLoading, setStepLoading] = useState(false);
+  const [linkMap, setLinkMap] = useState<LinkMap | null>(null);
+
+  const self: WorkflowRef = useMemo(
+    () => ({ source: "ghl", refId: id }),
+    [id]
+  );
 
   useEffect(() => {
     fetchGhlWorkflowSummary(id)
       .then(setSummary)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
+
+    // Cross-workflow links (portals) need Make credentials; degrade silently
+    const creds = loadCredentials();
+    if (creds) {
+      fetchLinks(creds.organizationId)
+        .then(setLinkMap)
+        .catch(() => setLinkMap(null));
+    }
   }, [id]);
+
+  const canvasData = useMemo(
+    () => (summary ? withPortals(summary, linkMap, self) : null),
+    [summary, linkMap, self]
+  );
 
   const handleNodeClick = useCallback(
     (nodeId: NodeId) => {
+      const portal = parsePortalId(nodeId);
+      if (portal) {
+        router.push(workflowHref(portal));
+        return;
+      }
       setSelectedId(nodeId);
       setStepLoading(true);
       setSelectedStep(null);
@@ -58,7 +94,7 @@ export default function GhlWorkflowPage({
         .catch(() => setSelectedStep(null))
         .finally(() => setStepLoading(false));
     },
-    [id]
+    [id, router]
   );
 
   const closePanel = useCallback(() => {
@@ -154,26 +190,29 @@ export default function GhlWorkflowPage({
       {/* canvas area */}
       <div className="relative overflow-hidden">
         <ScenarioCanvas
-          modules={summary.modules}
-          connections={summary.connections}
+          modules={(canvasData ?? summary).modules}
+          connections={(canvasData ?? summary).connections}
           selectedId={selectedId}
           onNodeClick={handleNodeClick}
         />
 
-        {/* floating chip: source badge */}
+        {/* floating chips: source badge + connected workflows */}
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: EASE, delay: 0.35 }}
-          className="pointer-events-none absolute left-4 top-3 z-[2] flex max-w-[60%] flex-wrap items-center gap-1.5"
+          className="absolute left-4 top-3 z-[2] flex max-w-[70%] flex-col gap-1.5"
         >
-          <span className="flex items-center gap-1.5 rounded-full border border-line bg-glass px-2.5 py-1 text-[10px] font-semibold text-t2 backdrop-blur-[8px]">
-            <span
-              className="size-[7px] rounded-[2px]"
-              style={{ background: appColor("ghl") }}
-            />
-            {appName("ghl")}
-          </span>
+          <div className="pointer-events-none flex flex-wrap items-center gap-1.5">
+            <span className="flex items-center gap-1.5 rounded-full border border-line bg-glass px-2.5 py-1 text-[10px] font-semibold text-t2 backdrop-blur-[8px]">
+              <span
+                className="size-[7px] rounded-[2px]"
+                style={{ background: appColor("ghl") }}
+              />
+              {appName("ghl")}
+            </span>
+          </div>
+          <ConnectedChips linkMap={linkMap} self={self} />
         </motion.div>
 
         <AnimatePresence>

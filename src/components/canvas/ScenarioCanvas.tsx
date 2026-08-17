@@ -61,6 +61,7 @@ interface CanvasNode {
   filterName: string | null;
   hasErrorHandler: boolean;
   badge?: string;
+  kind?: string;
 }
 
 interface GroupBox {
@@ -83,12 +84,15 @@ interface GroupBox {
 function layoutGraph(modules: ModuleInfo[], connections: Connection[]) {
   const ids = modules.map((m) => m.id);
   const idSet = new Set(ids);
+  /* Only goto (loop back-edges) is excluded from layering — cross-kind edges
+     participate so portal chips sit right after their anchor step. Grouped
+     mode never passes cross-group edges here. */
   const conns = connections.filter(
     (c) =>
       idSet.has(c.from) &&
       idSet.has(c.to) &&
       c.from !== c.to &&
-      !NON_LAYOUT_KINDS.has(c.kind ?? "")
+      c.kind !== "goto"
   );
 
   const out = new Map<NodeId, NodeId[]>();
@@ -447,17 +451,19 @@ export default function ScenarioCanvas({
   groups,
   selectedId,
   onNodeClick,
+  defaultTilt = true,
 }: {
   modules: ModuleInfo[];
   connections: Connection[];
   groups?: UnifiedGroup[];
   selectedId?: NodeId | null;
   onNodeClick?: (moduleId: NodeId) => void;
+  defaultTilt?: boolean;
 }) {
   const [cam, setCam] = useState({ zoom: 0.5, panX: 0, panY: 0 });
   const [drag, setDrag] = useState(false);
   const [glide, setGlide] = useState(false);
-  const [tilt, setTilt] = useState(true);
+  const [tilt, setTilt] = useState(defaultTilt);
   const [dragId, setDragId] = useState<NodeId | null>(null);
   const [pos, setPos] = useState<Record<NodeId, { cx: number; cy: number }>>({});
 
@@ -508,12 +514,18 @@ export default function ScenarioCanvas({
           filterName: m.filterName,
           hasErrorHandler: m.hasErrorHandler,
           badge: m.badge,
+          kind: m.kind,
         };
       }),
     [modules, layout, pos]
   );
 
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
+
+  /* Lite mode: past ~120 nodes the per-frame animation stack (pulse comets,
+     drift dashes, floaty idle) dominates render time. Drop it and keep the
+     interactions — pan/zoom/click stay identical. */
+  const lite = nodes.length > 120;
 
   const cycle = layout.maxCol * 0.65 + 2.2;
 
@@ -947,7 +959,7 @@ export default function ScenarioCanvas({
                       isGoto ? "6 6" : isCross ? "8 6" : undefined
                     }
                   />
-                  {!isGoto && !isCross && (
+                  {!lite && !isGoto && !isCross && (
                     <path
                       d={e.d}
                       fill="none"
@@ -963,7 +975,7 @@ export default function ScenarioCanvas({
             })}
           </svg>
 
-          <PulseLayer edges={pulseEdges} cycle={cycle} />
+          {!lite && <PulseLayer edges={pulseEdges} cycle={cycle} />}
 
           {/* edge label pills — billboarded so text stays face-on in 3D */}
           {edges
@@ -1016,6 +1028,80 @@ export default function ScenarioCanvas({
           {nodes.map((n, i) => {
             const selected = selectedId === n.id;
             const dragging = dragId === n.id;
+
+            /* Portal chip — a clickable doorway to a connected workflow. */
+            if (n.kind === "portal") {
+              const dead = n.badge === "deadLink";
+              const accent = dead ? "#ef4444" : "#f59e0b";
+              return (
+                <div
+                  key={n.id}
+                  onPointerDown={(e) => nodeDown(e, n)}
+                  onPointerMove={nodeMove}
+                  onPointerUp={nodeUp}
+                  style={{
+                    position: "absolute",
+                    left: n.cx - NODE_HALF,
+                    top: n.cy - 32,
+                    width: 140,
+                    cursor: "pointer",
+                    touchAction: "none",
+                    transformStyle: "preserve-3d",
+                  }}
+                >
+                  <div
+                    style={{
+                      transform: billT,
+                      transformOrigin: "70px 32px",
+                      transition: worldTrans,
+                      animation: `fadeIn .6s ease ${(0.3 + Math.min(i, 12) * 0.06).toFixed(2)}s both`,
+                    }}
+                  >
+                    <motion.div
+                      whileHover={{ scale: 1.07, y: -3 }}
+                      whileTap={{ scale: 0.96 }}
+                      transition={{ duration: 0.18, ease: POP_EASE }}
+                      className="flex flex-col items-center gap-1.5"
+                    >
+                      <div
+                        className="flex items-center gap-2 rounded-full border-2 px-3.5 py-2 backdrop-blur-[8px]"
+                        style={{
+                          borderColor: accent,
+                          background: `color-mix(in srgb, ${accent} 12%, var(--glass))`,
+                          boxShadow: `0 4px 14px var(--shade), 0 0 14px color-mix(in srgb, ${accent} 30%, transparent)${
+                            selected || dragging
+                              ? `, 0 0 0 2.5px var(--ringc)`
+                              : ""
+                          }`,
+                        }}
+                      >
+                        <span
+                          className="text-[13px] font-bold leading-none"
+                          style={{ color: accent }}
+                        >
+                          ↗
+                        </span>
+                        <span
+                          className="max-w-[150px] truncate text-[11.5px] font-semibold"
+                          style={{ color: accent }}
+                        >
+                          {n.label}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[9.5px] font-semibold uppercase tracking-wide text-t3">
+                        <span
+                          className="size-[6px] rounded-[2px]"
+                          style={{ background: appColor(n.app) }}
+                        />
+                        {n.app === "ghl" ? "GHL" : "Make"}
+                        {dead && <span className="text-err">· broken</span>}
+                        <span className="normal-case text-t3">· open</span>
+                      </div>
+                    </motion.div>
+                  </div>
+                </div>
+              );
+            }
             const tileShadow =
               (selected || dragging ? `0 0 0 2.5px var(--ringc), ` : "") +
               `0 5px 0 color-mix(in oklab, ${n.color} 55%, #000000), 0 12px 22px var(--ambient), 0 6px 16px color-mix(in srgb, ${n.color} 20%, transparent)`;
@@ -1075,9 +1161,13 @@ export default function ScenarioCanvas({
                   >
                     <div
                       className="relative size-16"
-                      style={{
-                        animation: `floaty 4s ease-in-out ${((i % 8) * 0.4).toFixed(2)}s infinite`,
-                      }}
+                      style={
+                        lite
+                          ? undefined
+                          : {
+                              animation: `floaty 4s ease-in-out ${((i % 8) * 0.4).toFixed(2)}s infinite`,
+                            }
+                      }
                     >
                       <div
                         className="absolute inset-0 flex items-center justify-center rounded-node border border-white/40 font-mono text-[15px] font-extrabold tracking-[.3px] text-white"

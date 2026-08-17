@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, use } from "react";
+import { useState, useEffect, useCallback, useMemo, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
@@ -12,13 +12,22 @@ import {
   fetchScenarioDetail,
   fetchScenarioSummary,
   fetchModuleDetail,
+  fetchLinks,
+  LinkMap,
   ScenarioDetail,
   ScenarioSummary,
   ModuleDetail,
   NodeId,
 } from "@/app/lib/api";
+import {
+  parsePortalId,
+  withPortals,
+  workflowHref,
+  WorkflowRef,
+} from "@/lib/portals";
 import ScenarioCanvas from "@/components/canvas/ScenarioCanvas";
 import ModuleDetailPanel from "./ModuleDetailPanel";
+import { ConnectedChips } from "@/components/canvas/ConnectedChips";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -44,9 +53,15 @@ export default function ScenarioPage({
   const [summary, setSummary] = useState<ScenarioSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<NodeId | null>(null);
   const [selectedModule, setSelectedModule] = useState<ModuleDetail | null>(null);
   const [moduleLoading, setModuleLoading] = useState(false);
+  const [linkMap, setLinkMap] = useState<LinkMap | null>(null);
+
+  const self: WorkflowRef = useMemo(
+    () => ({ source: "make", refId: id }),
+    [id]
+  );
 
   useEffect(() => {
     const creds = loadCredentials();
@@ -66,10 +81,25 @@ export default function ScenarioPage({
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
+
+    // Cross-workflow links (portals) — degrade silently if unavailable
+    fetchLinks(creds.organizationId)
+      .then(setLinkMap)
+      .catch(() => setLinkMap(null));
   }, [id, router]);
+
+  const canvasData = useMemo(
+    () => (summary ? withPortals(summary, linkMap, self) : null),
+    [summary, linkMap, self]
+  );
 
   const handleNodeClick = useCallback(
     (nodeId: NodeId) => {
+      const portal = parsePortalId(nodeId);
+      if (portal) {
+        router.push(workflowHref(portal));
+        return;
+      }
       const scenarioId = parseInt(id);
       const moduleId = Number(nodeId); // Make module ids are always numeric
       setSelectedId(moduleId);
@@ -80,7 +110,7 @@ export default function ScenarioPage({
         .catch(() => setSelectedModule(null))
         .finally(() => setModuleLoading(false));
     },
-    [id]
+    [id, router]
   );
 
   const closePanel = useCallback(() => {
@@ -181,34 +211,37 @@ export default function ScenarioPage({
       {/* canvas area */}
       <div className="relative overflow-hidden">
         <ScenarioCanvas
-          modules={summary.modules}
-          connections={summary.connections}
+          modules={(canvasData ?? summary).modules}
+          connections={(canvasData ?? summary).connections}
           selectedId={selectedId}
           onNodeClick={handleNodeClick}
         />
 
-        {/* floating chip: scenario id + apps used */}
+        {/* floating chips: scenario id + apps used + connected workflows */}
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: EASE, delay: 0.35 }}
-          className="pointer-events-none absolute left-4 top-3 z-[2] flex max-w-[60%] flex-wrap items-center gap-1.5"
+          className="absolute left-4 top-3 z-[2] flex max-w-[70%] flex-col gap-1.5"
         >
-          <span className="rounded-full border border-line bg-glass px-2.5 py-1 font-mono text-[10px] text-t3 backdrop-blur-[8px]">
-            #{detail.id}
-          </span>
-          {summary.appsUsed.map((app) => (
-            <span
-              key={app}
-              className="flex items-center gap-1.5 rounded-full border border-line bg-glass px-2.5 py-1 text-[10px] font-semibold text-t2 backdrop-blur-[8px]"
-            >
-              <span
-                className="size-[7px] rounded-[2px]"
-                style={{ background: appColor(app) }}
-              />
-              {appName(app)}
+          <div className="pointer-events-none flex flex-wrap items-center gap-1.5">
+            <span className="rounded-full border border-line bg-glass px-2.5 py-1 font-mono text-[10px] text-t3 backdrop-blur-[8px]">
+              #{detail.id}
             </span>
-          ))}
+            {summary.appsUsed.map((app) => (
+              <span
+                key={app}
+                className="flex items-center gap-1.5 rounded-full border border-line bg-glass px-2.5 py-1 text-[10px] font-semibold text-t2 backdrop-blur-[8px]"
+              >
+                <span
+                  className="size-[7px] rounded-[2px]"
+                  style={{ background: appColor(app) }}
+                />
+                {appName(app)}
+              </span>
+            ))}
+          </div>
+          <ConnectedChips linkMap={linkMap} self={self} />
         </motion.div>
 
         <AnimatePresence>

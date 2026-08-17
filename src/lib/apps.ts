@@ -5,6 +5,7 @@
  */
 
 const APP_COLORS: [RegExp, string][] = [
+  [/^make$/i, "#a855f7"],
   [/gateway|webhook|hook/i, "#3b82f6"],
   [/router|flow|builtin/i, "#64748b"],
   [/openai|gpt|\bai\b|anthropic|claude/i, "#14b8a6"],
