@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { onColorGradient } from "@/lib/apps";
 import { fmtMs, ST, type MonitorNode, type NodeStatus } from "./data";
 
 const POP_EASE = [0.34, 1.56, 0.64, 1] as const;
@@ -19,6 +20,7 @@ export function NodePuck({
   onPointerDown,
   onPointerMove,
   onPointerUp,
+  onActivate,
 }: {
   node: MonitorNode;
   index: number;
@@ -33,6 +35,7 @@ export function NodePuck({
   onPointerDown: (e: React.PointerEvent) => void;
   onPointerMove: (e: React.PointerEvent) => void;
   onPointerUp: (e: React.PointerEvent) => void;
+  onActivate?: () => void;
 }) {
   const sc = ST[status];
   const col = node.col;
@@ -52,6 +55,15 @@ export function NodePuck({
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onActivate?.();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={`${node.name}, ${node.sub}, ${sc.label}`}
       style={{
         position: "absolute",
         left: node.cx - 70,
@@ -64,6 +76,7 @@ export function NodePuck({
     >
       {/* ground shadow — sits on the plane, not billboarded */}
       <div
+        aria-hidden="true"
         style={{
           position: "absolute",
           left: 33,
@@ -103,7 +116,7 @@ export function NodePuck({
             <div
               className="absolute inset-0 flex items-center justify-center rounded-node border border-white/40 font-mono text-[15px] font-extrabold tracking-[.3px] text-white"
               style={{
-                background: `linear-gradient(180deg, color-mix(in oklab, ${col} 78%, #ffffff) 0%, ${col} 55%, color-mix(in oklab, ${col} 80%, #000000) 100%)`,
+                background: onColorGradient(col),
                 boxShadow: tileShadow,
                 textShadow: "0 1px 2px rgba(0,0,0,.3)",
                 transition: "box-shadow .18s ease",
@@ -112,6 +125,7 @@ export function NodePuck({
               {node.icon}
             </div>
             <div
+              aria-hidden="true"
               className="absolute -right-[3px] -top-[3px] size-3 rounded-full border-2 border-plane"
               style={{
                 background: sc.dot,

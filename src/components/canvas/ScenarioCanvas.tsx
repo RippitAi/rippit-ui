@@ -15,13 +15,15 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { appColor, appGlyph, appName } from "@/lib/apps";
-import type {
-  ModuleInfo,
-  Connection,
-  NodeId,
-  UnifiedGroup,
-} from "@/app/lib/api";
+import { appColor, appGlyph, appName, onColorGradient } from "@/lib/apps";
+import {
+  CONNECTORS,
+  badgeTooltip,
+  isProviderId,
+  providerColor,
+} from "@/lib/connectors";
+import type { ProviderId, UnifiedGroup } from "@/lib/connectors/types";
+import type { ModuleInfo, Connection, NodeId } from "@/app/lib/api";
 
 const POP_EASE = [0.34, 1.56, 0.64, 1] as const;
 const NODE_HALF = 70; // wrapper is 140 wide, puck centered
@@ -67,7 +69,7 @@ interface CanvasNode {
 interface GroupBox {
   id: string;
   name: string;
-  source: "make" | "ghl";
+  source: ProviderId;
   x: number;
   y: number;
   w: number;
@@ -377,6 +379,7 @@ function PulseLayer({ edges, cycle }: { edges: EdgeView[]; cycle: number }) {
 
   return (
     <svg
+      aria-hidden="true"
       className="pointer-events-none absolute inset-0"
       style={{ overflow: "visible" }}
       width={1}
@@ -428,10 +431,12 @@ function ClusterButton({
       <TooltipTrigger asChild>
         <button
           onClick={onClick}
+          aria-label={label}
+          aria-pressed={active}
           className="flex size-8 cursor-pointer items-center justify-center rounded-control border backdrop-blur-[8px] transition-colors hover:border-t1"
           style={{
             background: active ? "var(--text)" : "var(--glass)",
-            borderColor: active ? "var(--text)" : "var(--line)",
+            borderColor: active ? "var(--text)" : "var(--line-strong)",
             color: active ? "var(--bg)" : "var(--t2)",
           }}
         >
@@ -792,9 +797,51 @@ export default function ScenarioCanvas({
     setTimeout(() => fitRef.current(), 20);
   }, []);
 
-  /* Keyboard shortcuts: +/− zoom, F fit, T tilt */
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
+  /* ---------- keyboard access ----------
+     Shortcuts are scoped to the canvas container (focus-within), not the
+     window — bare letters on window conflict with screen-reader browse mode
+     and any focused control elsewhere on the page. Nodes use a roving
+     tabindex: one node is tabbable, arrows move focus along the flow. */
+
+  const [focusId, setFocusId] = useState<NodeId | null>(null);
+  const nodeEls = useRef(new Map<NodeId, HTMLDivElement>());
+  const tabTarget =
+    focusId != null && byId.has(focusId) ? focusId : nodes[0]?.id;
+
+  const focusNodeAt = useCallback(
+    (index: number) => {
+      const n = nodes[Math.max(0, Math.min(nodes.length - 1, index))];
+      if (n) nodeEls.current.get(n.id)?.focus();
+    },
+    [nodes]
+  );
+
+  const nodeKeyDown = useCallback(
+    (e: React.KeyboardEvent, n: CanvasNode) => {
+      const idx = nodes.findIndex((x) => x.id === n.id);
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        onNodeClick?.(n.id);
+        centerOn(n.id);
+      } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        focusNodeAt(idx + 1);
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        focusNodeAt(idx - 1);
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        focusNodeAt(0);
+      } else if (e.key === "End") {
+        e.preventDefault();
+        focusNodeAt(nodes.length - 1);
+      }
+    },
+    [nodes, onNodeClick, centerOn, focusNodeAt]
+  );
+
+  const canvasKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || e.metaKey || e.ctrlKey)
         return;
@@ -802,10 +849,62 @@ export default function ScenarioCanvas({
       else if (e.key === "-" || e.key === "_") zoomBy(0.83);
       else if (e.key === "f" || e.key === "F") fitRef.current();
       else if (e.key === "t" || e.key === "T") toggle3d();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [zoomBy, toggle3d]);
+      else if (
+        e.target === vp.current &&
+        (e.key === "ArrowRight" ||
+          e.key === "ArrowLeft" ||
+          e.key === "ArrowUp" ||
+          e.key === "ArrowDown")
+      ) {
+        // arrows pan when the viewport itself (not a node) is focused
+        e.preventDefault();
+        const step = e.shiftKey ? 180 : 60;
+        const dx =
+          e.key === "ArrowRight" ? -step : e.key === "ArrowLeft" ? step : 0;
+        const dy =
+          e.key === "ArrowDown" ? -step : e.key === "ArrowUp" ? step : 0;
+        setGlide(false);
+        setCam((c) => ({ ...c, panX: c.panX + dx, panY: c.panY + dy }));
+      }
+    },
+    [zoomBy, toggle3d]
+  );
+
+  const nodeAriaLabel = useCallback(
+    (n: CanvasNode) => {
+      if (n.kind === "portal") {
+        const target = isProviderId(n.app)
+          ? CONNECTORS[n.app].label
+          : appName(n.app);
+        return `Open connected workflow ${n.label} in ${target}${
+          n.badge === "deadLink" ? " (link broken)" : ""
+        }`;
+      }
+      const parts = [n.label, appName(n.app)];
+      if (n.kind === "trigger") parts.push("trigger");
+      if (n.hasFilter) parts.push(n.filterName ? `filtered: ${n.filterName}` : "filtered");
+      if (n.hasErrorHandler) parts.push("has error handler");
+      if (n.badge) {
+        const tip = badgeTooltip(n.badge);
+        if (tip) parts.push(tip);
+      }
+      return parts.join(", ");
+    },
+    []
+  );
+
+  /* Adjacency labels for the screen-reader structure list. */
+  const srAdjacency = useMemo(() => {
+    const map = new Map<NodeId, string[]>();
+    for (const c of connections) {
+      if (byId.has(c.from) && byId.has(c.to)) {
+        const arr = map.get(c.from) ?? [];
+        arr.push(byId.get(c.to)!.label);
+        map.set(c.from, arr);
+      }
+    }
+    return map;
+  }, [connections, byId]);
 
   const worldTrans =
     drag || glide ? "transform 0s" : "transform .55s cubic-bezier(.22,1,.36,1)";
@@ -817,7 +916,26 @@ export default function ScenarioCanvas({
     : "none";
 
   return (
-    <div className="absolute inset-0 overflow-hidden bg-vpbg">
+    <div
+      className="absolute inset-0 overflow-hidden bg-vpbg"
+      onKeyDown={canvasKeyDown}
+    >
+      {/* screen-reader alternative: the flow as a structured list */}
+      <div className="sr-only">
+        <h2>Workflow structure</h2>
+        <ol>
+          {nodes.map((n) => {
+            const targets = srAdjacency.get(n.id);
+            return (
+              <li key={String(n.id)}>
+                {n.label} ({appName(n.app)})
+                {targets?.length ? ` — connects to ${targets.join(", ")}` : ""}
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+
       {/* viewport — the pan/zoom surface. The zoom cluster lives OUTSIDE
           this element: its pointer capture would otherwise swallow button
           clicks, and backdrop-filter inside a perspective context makes
@@ -827,6 +945,9 @@ export default function ScenarioCanvas({
         onPointerDown={panDown}
         onPointerMove={panMove}
         onPointerUp={panUp}
+        tabIndex={0}
+        role="group"
+        aria-label="Workflow canvas. Tab to reach steps, arrow keys to move between them, Enter to open details. With the canvas itself focused, arrow keys pan and plus or minus zoom."
         className="absolute inset-0"
         style={{
           cursor: drag ? "grabbing" : "grab",
@@ -867,6 +988,7 @@ export default function ScenarioCanvas({
             transition: worldTrans,
             pointerEvents: "none",
           }}
+          aria-hidden="true"
         />
 
         {/* content layer (tilted with the plane) */}
@@ -913,18 +1035,15 @@ export default function ScenarioCanvas({
                 >
                   <div className="flex -translate-y-1/2 items-center gap-2 rounded-full border border-line bg-pill px-3 py-[5px] shadow-[0_4px_14px_var(--shade)]">
                     <span
+                      aria-hidden="true"
                       className="size-[8px] flex-none rounded-[2px]"
-                      style={{
-                        background: appColor(
-                          g.source === "ghl" ? "ghl" : "make"
-                        ),
-                      }}
+                      style={{ background: providerColor(g.source) }}
                     />
                     <span className="max-w-[240px] truncate text-[11px] font-semibold text-t1">
                       {g.name}
                     </span>
                     <span className="font-mono text-[9px] font-semibold uppercase tracking-wide text-t3">
-                      {g.source}
+                      {CONNECTORS[g.source].shortLabel}
                     </span>
                   </div>
                 </div>
@@ -934,6 +1053,7 @@ export default function ScenarioCanvas({
 
           {/* edges */}
           <svg
+            aria-hidden="true"
             className="pointer-events-none absolute inset-0"
             style={{ overflow: "visible" }}
             width={1}
@@ -945,8 +1065,8 @@ export default function ScenarioCanvas({
               const isDead = e.status === "dead";
               const stroke = isCross
                 ? isDead
-                  ? "#ef4444"
-                  : "#f59e0b"
+                  ? "var(--err)"
+                  : "var(--warn)"
                 : "var(--edge)";
               return (
                 <g key={e.key} opacity={isGoto ? 0.55 : 1}>
@@ -983,7 +1103,8 @@ export default function ScenarioCanvas({
             .map((e) => {
               const isCross = CROSS_KINDS.has(e.kind ?? "");
               const isDead = e.status === "dead";
-              const crossColor = isDead ? "#ef4444" : "#f59e0b";
+              const crossColor = isDead ? "var(--err-text)" : "var(--warn-text)";
+              const crossAccent = isDead ? "var(--err)" : "var(--warn)";
               return (
                 <div
                   key={`l${e.key}`}
@@ -1007,8 +1128,8 @@ export default function ScenarioCanvas({
                         isCross
                           ? {
                               color: crossColor,
-                              borderColor: `color-mix(in srgb, ${crossColor} 40%, transparent)`,
-                              background: `color-mix(in srgb, ${crossColor} 12%, var(--pill))`,
+                              borderColor: `color-mix(in srgb, ${crossAccent} 40%, transparent)`,
+                              background: `color-mix(in srgb, ${crossAccent} 12%, var(--pill))`,
                             }
                           : {
                               color: "var(--t2)",
@@ -1032,13 +1153,26 @@ export default function ScenarioCanvas({
             /* Portal chip — a clickable doorway to a connected workflow. */
             if (n.kind === "portal") {
               const dead = n.badge === "deadLink";
-              const accent = dead ? "#ef4444" : "#f59e0b";
+              const accent = dead ? "var(--err-text)" : "var(--warn-text)";
+              const accentGraphic = dead ? "var(--err)" : "var(--warn)";
               return (
                 <div
                   key={n.id}
+                  ref={(el) => {
+                    if (el) nodeEls.current.set(n.id, el);
+                    else nodeEls.current.delete(n.id);
+                  }}
                   onPointerDown={(e) => nodeDown(e, n)}
                   onPointerMove={nodeMove}
                   onPointerUp={nodeUp}
+                  onKeyDown={(e) => nodeKeyDown(e, n)}
+                  onFocus={() => {
+                    setFocusId(n.id);
+                    centerOn(n.id);
+                  }}
+                  role="button"
+                  tabIndex={tabTarget === n.id ? 0 : -1}
+                  aria-label={nodeAriaLabel(n)}
                   style={{
                     position: "absolute",
                     left: n.cx - NODE_HALF,
@@ -1066,9 +1200,9 @@ export default function ScenarioCanvas({
                       <div
                         className="flex items-center gap-2 rounded-full border-2 px-3.5 py-2 backdrop-blur-[8px]"
                         style={{
-                          borderColor: accent,
-                          background: `color-mix(in srgb, ${accent} 12%, var(--glass))`,
-                          boxShadow: `0 4px 14px var(--shade), 0 0 14px color-mix(in srgb, ${accent} 30%, transparent)${
+                          borderColor: accentGraphic,
+                          background: `color-mix(in srgb, ${accentGraphic} 12%, var(--glass))`,
+                          boxShadow: `0 4px 14px var(--shade), 0 0 14px color-mix(in srgb, ${accentGraphic} 30%, transparent)${
                             selected || dragging
                               ? `, 0 0 0 2.5px var(--ringc)`
                               : ""
@@ -1090,11 +1224,20 @@ export default function ScenarioCanvas({
                       </div>
                       <div className="flex items-center gap-1.5 text-[9.5px] font-semibold uppercase tracking-wide text-t3">
                         <span
+                          aria-hidden="true"
                           className="size-[6px] rounded-[2px]"
-                          style={{ background: appColor(n.app) }}
+                          style={{
+                            background: isProviderId(n.app)
+                              ? providerColor(n.app)
+                              : appColor(n.app),
+                          }}
                         />
-                        {n.app === "ghl" ? "GHL" : "Make"}
-                        {dead && <span className="text-err">· broken</span>}
+                        {isProviderId(n.app)
+                          ? CONNECTORS[n.app].shortLabel
+                          : appName(n.app)}
+                        {dead && (
+                          <span className="text-err-text">· broken</span>
+                        )}
                         <span className="normal-case text-t3">· open</span>
                       </div>
                     </motion.div>
@@ -1113,9 +1256,21 @@ export default function ScenarioCanvas({
             return (
               <div
                 key={n.id}
+                ref={(el) => {
+                  if (el) nodeEls.current.set(n.id, el);
+                  else nodeEls.current.delete(n.id);
+                }}
                 onPointerDown={(e) => nodeDown(e, n)}
                 onPointerMove={nodeMove}
                 onPointerUp={nodeUp}
+                onKeyDown={(e) => nodeKeyDown(e, n)}
+                onFocus={() => {
+                  setFocusId(n.id);
+                  centerOn(n.id);
+                }}
+                role="button"
+                tabIndex={tabTarget === n.id ? 0 : -1}
+                aria-label={nodeAriaLabel(n)}
                 style={{
                   position: "absolute",
                   left: n.cx - NODE_HALF,
@@ -1128,6 +1283,7 @@ export default function ScenarioCanvas({
               >
                 {/* ground shadow — sits on the plane, not billboarded */}
                 <div
+                  aria-hidden="true"
                   style={{
                     position: "absolute",
                     left: 33,
@@ -1172,7 +1328,7 @@ export default function ScenarioCanvas({
                       <div
                         className="absolute inset-0 flex items-center justify-center rounded-node border border-white/40 font-mono text-[15px] font-extrabold tracking-[.3px] text-white"
                         style={{
-                          background: `linear-gradient(180deg, color-mix(in oklab, ${n.color} 78%, #ffffff) 0%, ${n.color} 55%, color-mix(in oklab, ${n.color} 80%, #000000) 100%)`,
+                          background: onColorGradient(n.color),
                           boxShadow: tileShadow,
                           textShadow: "0 1px 2px rgba(0,0,0,.3)",
                           transition: "box-shadow .18s ease",
@@ -1182,38 +1338,37 @@ export default function ScenarioCanvas({
                       </div>
                       {n.hasFilter && (
                         <div
+                          aria-hidden="true"
                           title={n.filterName || "Filter"}
                           className="absolute -right-[3px] -top-[3px] size-3 rounded-full border-2 border-plane"
                           style={{
-                            background: "#f59e0b",
-                            boxShadow: "0 0 8px #f59e0b",
+                            background: "var(--warn)",
+                            boxShadow: "0 0 8px var(--warn)",
                           }}
                         />
                       )}
                       {n.hasErrorHandler && (
                         <div
+                          aria-hidden="true"
                           title="Error handler"
                           className="absolute -bottom-[3px] -right-[3px] size-3 rounded-full border-2 border-plane"
                           style={{
-                            background: "#ef4444",
-                            boxShadow: "0 0 8px #ef4444",
+                            background: "var(--err)",
+                            boxShadow: "0 0 8px var(--err)",
                           }}
                         />
                       )}
                       {n.badge && (
                         <div
-                          title={
-                            n.badge === "unmatchedLink"
-                              ? "Webhook target not found in Make"
-                              : "Calls GHL"
-                          }
+                          aria-hidden="true"
+                          title={badgeTooltip(n.badge) ?? undefined}
                           className="absolute -left-[3px] -top-[3px] size-3 rounded-full border-2 border-plane"
                           style={{
                             background:
                               n.badge === "unmatchedLink"
-                                ? "#ef4444"
-                                : "#f59e0b",
-                            boxShadow: `0 0 8px ${n.badge === "unmatchedLink" ? "#ef4444" : "#f59e0b"}`,
+                                ? "var(--err)"
+                                : "var(--warn)",
+                            boxShadow: `0 0 8px ${n.badge === "unmatchedLink" ? "var(--err)" : "var(--warn)"}`,
                           }}
                         />
                       )}
@@ -1231,7 +1386,7 @@ export default function ScenarioCanvas({
                       <div className="max-w-[200px] truncate whitespace-nowrap text-[10.5px] text-t2">
                         {appName(n.app)}
                         {n.hasFilter && (
-                          <span className="text-warn"> · filtered</span>
+                          <span className="text-warn-text"> · filtered</span>
                         )}
                       </div>
                     </div>

@@ -13,17 +13,18 @@ export function WorkflowChip({ incident }: { incident: boolean }) {
       className="pointer-events-none absolute left-[276px] top-3 z-[2] flex items-center gap-2.5 rounded-[10px] border border-line bg-glass px-[13px] py-2 shadow-[0_6px_18px_var(--shade)] backdrop-blur-[12px]"
     >
       <div
+        aria-hidden="true"
         className="size-[7px] rounded-full"
         style={{ background: st.dot, boxShadow: `0 0 8px ${st.dot}` }}
       />
       <div className="text-[12.5px] font-semibold">Lead Capture → Nurture</div>
       <div
         className="rounded-full border px-2 py-[2px] text-[10px] font-semibold"
-        style={{ color: st.dot, borderColor: st.border }}
+        style={{ color: st.color, borderColor: st.border }}
       >
         {incident ? "Incident" : "Degraded"}
       </div>
-      <div className="h-3.5 w-px bg-line" />
+      <div aria-hidden="true" className="h-3.5 w-px bg-line" />
       <div className="font-mono text-[9.5px] text-t3">last run 18s ago · v2.4</div>
     </motion.div>
   );

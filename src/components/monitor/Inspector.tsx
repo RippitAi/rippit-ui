@@ -5,6 +5,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUpRight, Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { onColorGradient } from "@/lib/apps";
+import { getConnector } from "@/lib/connectors";
 import {
   flattenJson,
   fmtMs,
@@ -90,6 +92,7 @@ export function Inspector({
 
   return (
     <motion.aside
+      aria-label={`Inspector — ${node.name}`}
       initial={{ opacity: 0, x: 26 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.55, ease: EASE, delay: 0.12 }}
@@ -98,15 +101,14 @@ export function Inspector({
       {/* header */}
       <div className="flex items-center gap-[11px] px-4 pb-3 pt-3.5">
         <div
+          aria-hidden="true"
           className="flex size-[38px] flex-none items-center justify-center rounded-[11px] border border-white/25 font-mono text-[12px] font-bold text-white shadow-[0_4px_12px_var(--shade)]"
-          style={{
-            background: `linear-gradient(180deg, color-mix(in oklab, ${node.col} 78%, #ffffff), ${node.col})`,
-          }}
+          style={{ background: onColorGradient(node.col) }}
         >
           {node.icon}
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-[2px]">
-          <div className="truncate text-[14.5px] font-semibold">{node.name}</div>
+          <h2 className="truncate text-[14.5px] font-semibold">{node.name}</h2>
           <div className="text-[10.5px] text-t3">{node.sub}</div>
         </div>
         <div
@@ -179,13 +181,16 @@ export function Inspector({
               </div>
               <button
                 onClick={copyPayload}
+                aria-label={
+                  copied ? "Copied to clipboard" : "Copy payload to clipboard"
+                }
                 className="flex cursor-pointer items-center gap-1 text-[10px] text-t3 transition-colors hover:text-t1"
               >
-                {copied ? "copied" : "copy"}
+                <span aria-hidden="true">{copied ? "copied" : "copy"}</span>
                 {copied ? (
-                  <Check className="size-2.5" />
+                  <Check aria-hidden="true" className="size-2.5" />
                 ) : (
-                  <Copy className="size-2.5" />
+                  <Copy aria-hidden="true" className="size-2.5" />
                 )}
               </button>
             </div>
@@ -210,10 +215,15 @@ export function Inspector({
               </div>
               <div className="h-px flex-1 bg-line2" />
             </div>
-            <div className="mt-2.5 flex h-[34px] items-end gap-[3px]">
+            <div
+              role="img"
+              aria-label={`Throughput over the last hour: ${node.m.ops} operations, steady`}
+              className="mt-2.5 flex h-[34px] items-end gap-[3px]"
+            >
               {thruBars.map((h, i) => (
                 <div
                   key={i}
+                  aria-hidden="true"
                   className="flex-1 rounded-t-[2px] transition-[filter] hover:brightness-150"
                   style={{ height: h, background: "var(--barc)" }}
                 />
@@ -275,8 +285,8 @@ export function Inspector({
           variant="outline"
           className="h-auto flex-1 cursor-pointer rounded-control border-line bg-transparent py-[9px] text-[12px] font-semibold text-t2 hover:border-t1 hover:bg-transparent hover:text-t1"
         >
-          {node.sub.includes("GHL") ? "Open in GHL" : "Open in Make"}
-          <ArrowUpRight className="size-3" />
+          Open in {getConnector(node.provider ?? "make").label}
+          <ArrowUpRight aria-hidden="true" className="size-3" />
         </Button>
       </div>
     </motion.aside>

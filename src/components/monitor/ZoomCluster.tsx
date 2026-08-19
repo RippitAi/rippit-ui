@@ -27,11 +27,13 @@ function ClusterButton({
       <TooltipTrigger asChild>
         <button
           onClick={onClick}
+          aria-label={label}
+          aria-pressed={active}
           className="flex size-8 cursor-pointer items-center justify-center rounded-control border text-[13px] backdrop-blur-[8px] transition-colors hover:border-t1"
           style={{
             background: active ? "var(--text)" : "var(--glass)",
-            borderColor: active ? "var(--text)" : "var(--line)",
-            color: active ? "var(--bg)" : warn ? "#f59e0b" : "var(--t2)",
+            borderColor: active ? "var(--text)" : "var(--line-strong)",
+            color: active ? "var(--bg)" : warn ? "var(--warn-text)" : "var(--t2)",
           }}
         >
           {children}

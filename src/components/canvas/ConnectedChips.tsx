@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import type { LinkMap } from "@/app/lib/api";
 import { linksFor, workflowHref, WorkflowRef } from "@/lib/portals";
-import { appColor } from "@/lib/apps";
+import { providerColor } from "@/lib/connectors";
 
 /*
  * Always-visible row of connected workflows for the focused canvas view —
@@ -54,24 +54,29 @@ export function ConnectedChips({
         Connected ({targets.length})
       </span>
       {targets.map((t) => {
-        const accent = t.dead ? "#ef4444" : "#f59e0b";
+        const accentText = t.dead ? "var(--err-text)" : "var(--warn-text)";
+        const accentGraphic = t.dead ? "var(--err)" : "var(--warn)";
         return (
           <button
             key={`${t.ref.source}:${t.ref.refId}`}
             onClick={() => router.push(workflowHref(t.ref))}
-            title={`${t.direction === "out" ? "Calls" : "Called by"} ${t.name}`}
+            aria-label={`${t.direction === "out" ? "Calls" : "Called by"} ${t.name}${t.dead ? " (link broken)" : ""} — open workflow`}
             className="flex cursor-pointer items-center gap-1.5 rounded-full border bg-glass px-2.5 py-1 text-[10px] font-semibold backdrop-blur-[8px] transition-transform hover:-translate-y-px"
             style={{
-              borderColor: `color-mix(in srgb, ${accent} 45%, transparent)`,
-              color: accent,
+              borderColor: `color-mix(in srgb, ${accentGraphic} 45%, transparent)`,
+              color: accentText,
             }}
           >
             <span
+              aria-hidden="true"
               className="size-[6px] rounded-[2px]"
-              style={{ background: appColor(t.ref.source) }}
+              style={{ background: providerColor(t.ref.source) }}
             />
             <span className="max-w-[180px] truncate">{t.name}</span>
-            <span>{t.direction === "out" ? "→" : "←"}</span>
+            {t.dead && <span>· broken</span>}
+            <span aria-hidden="true">
+              {t.direction === "out" ? "→" : "←"}
+            </span>
           </button>
         );
       })}

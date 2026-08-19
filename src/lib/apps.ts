@@ -37,6 +37,15 @@ export function appColor(app: string): string {
   return FALLBACK_COLORS[h % FALLBACK_COLORS.length];
 }
 
+/**
+ * Gradient for surfaces that carry white glyph text. Stops are darkened so
+ * white stays ≥4.5:1 even on the brightest app colors (green/amber) — the
+ * old white-topped gradient bottomed out near 2.2:1.
+ */
+export function onColorGradient(col: string): string {
+  return `linear-gradient(180deg, color-mix(in srgb, ${col} 65%, #000) 0%, color-mix(in srgb, ${col} 52%, #000) 55%, color-mix(in srgb, ${col} 40%, #000) 100%)`;
+}
+
 export function appGlyph(app: string): string {
   const words = app.split(/[^a-zA-Z0-9]+/).filter(Boolean);
   if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();

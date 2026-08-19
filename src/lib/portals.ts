@@ -15,9 +15,11 @@ import type {
   NodeId,
   WorkflowLink,
 } from "@/app/lib/api";
+import { getConnector, isProviderId } from "@/lib/connectors";
+import type { ProviderId } from "@/lib/connectors/types";
 
 export interface WorkflowRef {
-  source: "make" | "ghl";
+  source: ProviderId;
   refId: string;
 }
 
@@ -31,16 +33,23 @@ export function parsePortalId(id: NodeId): WorkflowRef | null {
   const rest = s.slice("portal:".length);
   const sep = rest.indexOf(":");
   if (sep < 0) return null;
-  return {
-    source: rest.slice(0, sep) as "make" | "ghl",
-    refId: rest.slice(sep + 1),
-  };
+  const source = rest.slice(0, sep);
+  if (!isProviderId(source)) return null;
+  return { source, refId: rest.slice(sep + 1) };
+}
+
+/** Parse a "{source}:{refId}" workflow-card id (unified map nodes). */
+export function parseWorkflowId(id: NodeId): WorkflowRef | null {
+  const s = String(id);
+  const sep = s.indexOf(":");
+  if (sep < 0) return null;
+  const source = s.slice(0, sep);
+  if (!isProviderId(source)) return null;
+  return { source, refId: s.slice(sep + 1) };
 }
 
 export function workflowHref(ref: WorkflowRef): string {
-  return ref.source === "make"
-    ? `/scenarios/${ref.refId}`
-    : `/workflows/ghl/${ref.refId}`;
+  return `/w/${ref.source}/${ref.refId}`;
 }
 
 const same = (a: WorkflowRef, b: { source: string; refId: string }) =>
@@ -89,7 +98,7 @@ export function withPortals(
         hasFilter: false,
         filterName: null,
         hasErrorHandler: false,
-        source: target.source as "make" | "ghl",
+        source: target.source as ProviderId,
         kind: "portal",
         badge: undefined,
       };
@@ -100,24 +109,10 @@ export function withPortals(
     return id;
   };
 
-  /* Incoming anchors: Make → the webhook trigger module (by hookId when
-     known); GHL → the first trigger node, else the first step. */
-  const incomingAnchor = (hookId?: number): NodeId | null => {
-    if (self.source === "make") {
-      const byHook =
-        hookId != null
-          ? summary.modules.find((m) => m.hookId === hookId)
-          : undefined;
-      const anchor =
-        byHook ??
-        summary.modules.find((m) =>
-          m.module.startsWith("gateway:CustomWebHook")
-        );
-      return anchor?.id ?? summary.modules[0]?.id ?? null;
-    }
-    const trigger = summary.modules.find((m) => m.kind === "trigger");
-    return trigger?.id ?? summary.modules[0]?.id ?? null;
-  };
+  /* Incoming anchor: where a cross-workflow link lands on this platform's
+     canvas — resolved by the connector descriptor. */
+  const incomingAnchor = (hookId?: number): NodeId | null =>
+    getConnector(self.source).incomingAnchor(summary.modules, hookId);
 
   for (const link of links) {
     if (same(self, link.from)) {

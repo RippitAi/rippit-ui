@@ -5,6 +5,8 @@
  * (aggregation query), pulse triggering (per real execution).
  */
 
+import type { ProviderId } from "@/lib/connectors/types";
+
 export type NodeStatus = "ok" | "warn" | "err" | "off";
 
 export interface MonitorNode {
@@ -15,6 +17,8 @@ export interface MonitorNode {
   col: string;
   name: string;
   sub: string;
+  /** Platform the node lives in; defaults to "make" when omitted. */
+  provider?: ProviderId;
   ms: number;
   msLabel?: string;
   status: NodeStatus;
@@ -77,37 +81,39 @@ export const JS_THEMES = {
   },
 };
 
+/* Status colors reference the theme tokens: `dot` is the graphic role,
+   `color` the readable-text role (see globals.css). */
 export const ST: Record<
   NodeStatus,
   { dot: string; label: string; color: string; bg: string; border: string }
 > = {
   ok: {
-    dot: "#22c55e",
+    dot: "var(--ok)",
     label: "Healthy",
-    color: "#22c55e",
-    bg: "rgba(34,197,94,.1)",
-    border: "rgba(34,197,94,.3)",
+    color: "var(--ok-text)",
+    bg: "color-mix(in srgb, var(--ok) 10%, transparent)",
+    border: "color-mix(in srgb, var(--ok) 30%, transparent)",
   },
   warn: {
-    dot: "#f59e0b",
+    dot: "var(--warn)",
     label: "Retrying",
-    color: "#f59e0b",
-    bg: "rgba(245,158,11,.1)",
-    border: "rgba(245,158,11,.32)",
+    color: "var(--warn-text)",
+    bg: "color-mix(in srgb, var(--warn) 10%, transparent)",
+    border: "color-mix(in srgb, var(--warn) 32%, transparent)",
   },
   err: {
-    dot: "#ef4444",
+    dot: "var(--err)",
     label: "Failing",
-    color: "#ef4444",
-    bg: "rgba(239,68,68,.1)",
-    border: "rgba(239,68,68,.32)",
+    color: "var(--err-text)",
+    bg: "color-mix(in srgb, var(--err) 10%, transparent)",
+    border: "color-mix(in srgb, var(--err) 32%, transparent)",
   },
   off: {
-    dot: "#71717a",
+    dot: "var(--off)",
     label: "Paused",
-    color: "#a1a1aa",
-    bg: "rgba(128,128,140,.1)",
-    border: "rgba(128,128,140,.3)",
+    color: "var(--off-text)",
+    bg: "color-mix(in srgb, var(--off) 10%, transparent)",
+    border: "color-mix(in srgb, var(--off) 30%, transparent)",
   },
 };
 
@@ -209,6 +215,7 @@ export const NODES: MonitorNode[] = [
     col: "#0ea5e9",
     name: "Create Contact",
     sub: "GHL · contacts.upsert",
+    provider: "ghl",
     ms: 340,
     status: "ok",
     m: { avg: "340ms", p95: "900ms", ops: "186", cost: "$0.37", err: "1.1%" },
@@ -233,6 +240,7 @@ export const NODES: MonitorNode[] = [
     col: "#0ea5e9",
     name: "Add to Pipeline",
     sub: "GHL · New Lead stage",
+    provider: "ghl",
     ms: 288,
     status: "ok",
     m: { avg: "288ms", p95: "710ms", ops: "186", cost: "$0.37", err: "0.4%" },
@@ -257,6 +265,7 @@ export const NODES: MonitorNode[] = [
     col: "#0ea5e9",
     name: "SMS Welcome",
     sub: "GHL · Twilio SMS",
+    provider: "ghl",
     ms: 1900,
     msLabel: "1.9s",
     status: "warn",

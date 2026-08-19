@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { CYCLE, WORLD } from "./data";
 import type { EdgeView } from "./Monitor";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 
 /*
  * Live run pulses. Each edge owns a slot [t0, t1] in a 7s master cycle;
@@ -45,6 +46,7 @@ export function Pulses({
   const pausedRef = useRef(paused);
   const speedRef = useRef(speed);
   const edgesRef = useRef(edges);
+  const reducedMotion = usePrefersReducedMotion();
   useEffect(() => {
     pausedRef.current = paused;
     speedRef.current = speed;
@@ -52,6 +54,7 @@ export function Pulses({
   }, [paused, speed, edges]);
 
   useEffect(() => {
+    if (reducedMotion) return; // comets off; edge status still shows via stroke
     let raf = 0;
     clock.current.last = performance.now();
 
@@ -87,10 +90,13 @@ export function Pulses({
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, []);
+  }, [reducedMotion]);
+
+  if (reducedMotion) return null;
 
   return (
     <svg
+      aria-hidden="true"
       width={WORLD.w}
       height={WORLD.h}
       className="pointer-events-none absolute inset-0"

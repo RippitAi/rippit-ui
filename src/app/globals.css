@@ -12,6 +12,8 @@
 */
 
 :root {
+  color-scheme: dark;
+
   /* Core surface tokens (from design handoff) */
   --bg: #09090b;
   --vpbg: #0b0b0e;
@@ -19,9 +21,11 @@
   --glass: rgba(16, 16, 19, 0.85);
   --line: rgba(255, 255, 255, 0.08);
   --line2: rgba(255, 255, 255, 0.05);
+  /* Interactive-control boundaries need 3:1 (WCAG 1.4.11); --line is decorative only */
+  --line-strong: rgba(255, 255, 255, 0.38);
   --text: #f4f4f5;
   --t2: #a1a1aa;
-  --t3: #63636b;
+  --t3: #8b8b94; /* 5.89:1 on --bg (AA); was #63636b at 3.34:1 */
   --hover: rgba(255, 255, 255, 0.05);
   --code: #0a0a0c;
   --pill: #101014;
@@ -39,13 +43,18 @@
   --jstr: #7dd3fc;
   --jnum: #fbbf24;
   --jbool: #f472b6;
-  --jpunc: #63636b;
+  --jpunc: #8b8b94;
 
-  /* Status (identical in both themes) */
+  /* Status — graphic role (dots, borders, tinted backgrounds): 3:1 min */
   --ok: #22c55e;
   --warn: #f59e0b;
   --err: #ef4444;
   --off: #71717a;
+  /* Status — text role (readable as foreground text, incl. over 10% tints): 4.5:1 min */
+  --ok-text: #4ade80;
+  --warn-text: #fbbf24;
+  --err-text: #f87171;
+  --off-text: #a1a1aa;
 
   /* Legacy aliases used by existing pages */
   --background: var(--bg);
@@ -70,15 +79,18 @@
 }
 
 .light {
+  color-scheme: light;
+
   --bg: #fafafa;
   --vpbg: #f1f1f3;
   --panel: rgba(255, 255, 255, 0.95);
   --glass: rgba(255, 255, 255, 0.9);
   --line: #e4e4e7;
   --line2: #ececef;
+  --line-strong: #8f8f98; /* 3.07:1 on --bg (non-text minimum) */
   --text: #18181b;
   --t2: #52525b;
-  --t3: #a1a1aa;
+  --t3: #6b6b74; /* 5.05:1 on --bg (AA); was #a1a1aa at 2.46:1 */
   --hover: rgba(0, 0, 0, 0.04);
   --code: #fafafa;
   --pill: #ffffff;
@@ -95,7 +107,17 @@
   --jstr: #0a3069;
   --jnum: #953800;
   --jbool: #cf222e;
-  --jpunc: #6e7781;
+  --jpunc: #5b616b;
+
+  /* Status — light-theme roles (the dark hexes fail badly on light surfaces) */
+  --ok: #16a34a;
+  --warn: #d97706;
+  --err: #dc2626;
+  --off: #71717a;
+  --ok-text: #15803d;
+  --warn-text: #92400e;
+  --err-text: #b91c1c;
+  --off-text: #52525b;
 
   --card: #ffffff;
   --primary-hover: #3f3f46;
@@ -124,6 +146,11 @@
   --color-warn: var(--warn);
   --color-err: var(--err);
   --color-off: var(--off);
+  --color-ok-text: var(--ok-text);
+  --color-warn-text: var(--warn-text);
+  --color-err-text: var(--err-text);
+  --color-off-text: var(--off-text);
+  --color-line-strong: var(--line-strong);
 
   /* shadcn/ui mapping (monochrome accent rule: primary = text on bg) */
   --color-background: var(--bg);
@@ -254,5 +281,29 @@ body {
 
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/*
+  Focus baseline: every interactive element gets a visible ring without
+  per-component classes. --ringc is ≥3:1 against all surfaces, both themes.
+*/
+:focus-visible {
+  outline: 2px solid var(--ringc);
+  outline-offset: 2px;
+}
+
+/*
+  Reduced motion: neutralize the infinite ambience (floaty/blinkdot/ddrift)
+  and entrance keyframes. Status meaning survives — every animated indicator
+  also has a text or aria channel. framer-motion is handled separately via
+  <MotionConfig reducedMotion="user">.
+*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 

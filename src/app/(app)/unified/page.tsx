@@ -2,101 +2,47 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { motion } from "framer-motion";
 import { Search } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { loadCredentials } from "@/app/lib/credentials";
 import {
-  fetchLinks,
-  LinkMap,
   WorkflowCard,
   Connection,
   ModuleInfo,
   NodeId,
 } from "@/app/lib/api";
-import { workflowHref, WorkflowRef } from "@/lib/portals";
-import { appColor } from "@/lib/apps";
+import { parseWorkflowId, workflowHref } from "@/lib/portals";
+import { useConnections } from "@/components/app/ConnectionsProvider";
+import { allConnectors, badgeTooltip, providerColor } from "@/lib/connectors";
 import ScenarioCanvas from "@/components/canvas/ScenarioCanvas";
+import { StatChip } from "@/components/shared/StatChip";
+import { Segmented } from "@/components/shared/Segmented";
+import { LoadingState } from "@/components/shared/LoadingState";
+import { ErrorCard } from "@/components/shared/ErrorCard";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
-
-function StatChip({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col gap-px">
-      <span className="text-[10px] leading-none text-t3">{label}</span>
-      <span className="tabular text-[13px] font-semibold leading-tight">
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function Segmented<T extends string>({
-  value,
-  options,
-  onChange,
-}: {
-  value: T;
-  options: { value: T; label: string }[];
-  onChange: (v: T) => void;
-}) {
-  return (
-    <div className="flex items-center overflow-hidden rounded-full border border-line text-[10px] font-semibold">
-      {options.map((o) => (
-        <button
-          key={o.value}
-          onClick={() => onChange(o.value)}
-          className="cursor-pointer px-2.5 py-[4px] transition-colors"
-          style={
-            value === o.value
-              ? { background: "var(--text)", color: "var(--bg)" }
-              : { color: "var(--t3)" }
-          }
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 const cardId = (w: { source: string; refId: string }) =>
   `${w.source}:${w.refId}`;
 
 export default function UnifiedPage() {
   const router = useRouter();
-  const [linkMap, setLinkMap] = useState<LinkMap | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { linkMap, loading: connectionsLoading, refresh } = useConnections();
   const [mode, setMode] = useState<"map" | "list">("map");
-  const [linkedOnly, setLinkedOnly] = useState(true);
+  // null = no explicit choice yet → default to linked-only unless there are no links
+  const [linkedChoice, setLinkedChoice] = useState<boolean | null>(null);
+  const linkedOnly = linkedChoice ?? (linkMap ? linkMap.stats.links > 0 : true);
   const [query, setQuery] = useState("");
 
   useEffect(() => {
-    const creds = loadCredentials();
-    if (!creds) {
-      router.push("/");
-      return;
-    }
-    fetchLinks(creds.organizationId)
-      .then((m) => {
-        setLinkMap(m);
-        if (m.stats.links === 0) setLinkedOnly(false);
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, [router]);
+    document.title = "Workflow map — Rippit";
+  }, []);
 
   /* Per-workflow link involvement (for filtering + list badges). */
   const linkInfo = useMemo(() => {
     const info = new Map<string, { in: number; out: number; dead: boolean }>();
     if (!linkMap) return info;
-    const bump = (
-      key: string,
-      dir: "in" | "out",
-      dead: boolean
-    ) => {
+    const bump = (key: string, dir: "in" | "out", dead: boolean) => {
       const cur = info.get(key) ?? { in: 0, out: 0, dead: false };
       cur[dir] += 1;
       cur.dead = cur.dead || dead;
@@ -144,21 +90,15 @@ export default function UnifiedPage() {
 
   const handleMapClick = useCallback(
     (nodeId: NodeId) => {
-      const s = String(nodeId);
-      const sep = s.indexOf(":");
-      if (sep < 0) return;
-      const ref: WorkflowRef = {
-        source: s.slice(0, sep) as "make" | "ghl",
-        refId: s.slice(sep + 1),
-      };
-      router.push(workflowHref(ref));
+      const ref = parseWorkflowId(nodeId);
+      if (ref) router.push(workflowHref(ref));
     },
     [router]
   );
 
-  /* List data: grouped + searchable. */
-  const listData = useMemo(() => {
-    if (!linkMap) return { ghl: [] as WorkflowCard[], make: [] as WorkflowCard[] };
+  /* List data: one section per connector, searchable. */
+  const listSections = useMemo(() => {
+    if (!linkMap) return [];
     const q = query.trim().toLowerCase();
     const match = (w: WorkflowCard) =>
       (!q || w.name.toLowerCase().includes(q)) &&
@@ -171,46 +111,27 @@ export default function UnifiedPage() {
         a.name.localeCompare(b.name)
       );
     };
-    return {
-      ghl: linkMap.workflows.filter((w) => w.source === "ghl" && match(w)).sort(sortByLinks),
-      make: linkMap.workflows.filter((w) => w.source === "make" && match(w)).sort(sortByLinks),
-    };
+    return allConnectors().map((connector) => ({
+      connector,
+      rows: linkMap.workflows
+        .filter((w) => w.source === connector.id && match(w))
+        .sort(sortByLinks),
+    }));
   }, [linkMap, query, linkedOnly, linkInfo]);
 
-  if (loading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="text-center">
-          <div className="mx-auto size-7 animate-spin rounded-full border-2 border-t1 border-t-transparent" />
-          <p className="mt-3 text-[12px] text-t3">Loading workflow map…</p>
-        </div>
-      </div>
-    );
+  if (connectionsLoading && !linkMap) {
+    return <LoadingState message="Loading workflow map…" />;
   }
 
-  if (error) {
+  if (!linkMap) {
     return (
-      <div className="flex h-full items-center justify-center p-4">
-        <div className="w-full max-w-md rounded-card border border-line bg-panel p-6 text-center backdrop-blur-[14px]">
-          <div className="mx-auto mb-3 flex size-9 items-center justify-center rounded-full border border-[rgba(239,68,68,.32)] bg-[rgba(239,68,68,.1)] text-[15px] font-bold text-err">
-            !
-          </div>
-          <h2 className="mb-1.5 text-[14px] font-semibold">
-            Failed to load workflow map
-          </h2>
-          <p className="mb-4 text-[12px] text-t2">{error}</p>
-          <Link
-            href="/dashboard"
-            className="text-[12px] font-semibold text-t1 underline-offset-4 hover:underline"
-          >
-            Back to dashboard
-          </Link>
-        </div>
-      </div>
+      <ErrorCard
+        title="Failed to load workflow map"
+        message="The cross-platform link map couldn’t be fetched."
+        onRetry={refresh}
+      />
     );
   }
-
-  if (!linkMap) return null;
 
   const showing = linkedOnly
     ? linkMap.workflows.filter((w) => linkInfo.has(cardId(w))).length
@@ -224,11 +145,12 @@ export default function UnifiedPage() {
       {/* header */}
       <header className="flex items-center gap-3 border-b border-line px-4">
         <SidebarTrigger className="text-t2 hover:text-t1" />
-        <div className="h-[18px] w-px bg-line" />
-        <span className="truncate text-[13px] font-semibold tracking-[-0.01em]">
+        <div className="h-[18px] w-px bg-line" aria-hidden="true" />
+        <h1 className="truncate text-[13px] font-semibold tracking-[-0.01em]">
           Workflow map
-        </span>
+        </h1>
         <Segmented
+          label="View mode"
           value={mode}
           options={[
             { value: "map", label: "Map" },
@@ -237,19 +159,20 @@ export default function UnifiedPage() {
           onChange={setMode}
         />
         <Segmented
+          label="Workflow filter"
           value={linkedOnly ? "linked" : "all"}
           options={[
             { value: "linked", label: "Linked only" },
             { value: "all", label: `All (${linkMap.stats.workflows})` },
           ]}
-          onChange={(v) => setLinkedOnly(v === "linked")}
+          onChange={(v) => setLinkedChoice(v === "linked")}
         />
         <div className="flex-1" />
         <div className="hidden items-center gap-3.5 md:flex">
           <StatChip label="Showing" value={String(showing)} />
-          <div className="h-[22px] w-px bg-line" />
+          <div className="h-[22px] w-px bg-line" aria-hidden="true" />
           <StatChip label="Cross-links" value={String(linkMap.stats.links)} />
-          <div className="h-[22px] w-px bg-line" />
+          <div className="h-[22px] w-px bg-line" aria-hidden="true" />
           <StatChip label="Broken" value={String(linkMap.stats.deadLinks)} />
         </div>
       </header>
@@ -271,8 +194,9 @@ export default function UnifiedPage() {
           >
             <span className="flex items-center gap-1.5 rounded-full border border-line bg-glass px-2.5 py-1 text-[10px] font-semibold text-t2 backdrop-blur-[8px]">
               <span
+                aria-hidden="true"
                 className="inline-block h-0 w-5 border-t-2 border-dashed"
-                style={{ borderColor: "#f59e0b" }}
+                style={{ borderColor: "var(--warn)" }}
               />
               link · click a workflow to open it
             </span>
@@ -282,30 +206,28 @@ export default function UnifiedPage() {
         <div className="overflow-y-auto px-4 py-4">
           <div className="mx-auto flex max-w-3xl flex-col gap-5">
             {/* search */}
-            <div className="flex items-center gap-2 rounded-control border border-line bg-panel px-3 py-2">
-              <Search className="size-3.5 text-t3" />
+            <div className="flex items-center gap-2 rounded-control border border-line-strong bg-panel px-3 py-2">
+              <Search aria-hidden="true" className="size-3.5 text-t3" />
               <input
+                type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search workflows…"
-                className="w-full bg-transparent text-[12.5px] outline-none placeholder:text-t3"
+                aria-label="Search workflows"
+                className="w-full bg-transparent text-[12.5px] placeholder:text-t3"
               />
             </div>
 
-            {(
-              [
-                ["ghl", "GHL workflows", listData.ghl],
-                ["make", "Make scenarios", listData.make],
-              ] as const
-            ).map(([source, title, rows]) => (
-              <div key={source}>
+            {listSections.map(({ connector, rows }) => (
+              <div key={connector.id}>
                 <div className="mb-2 flex items-center gap-2">
                   <span
+                    aria-hidden="true"
                     className="size-[8px] rounded-[2px]"
-                    style={{ background: appColor(source) }}
+                    style={{ background: providerColor(connector.id) }}
                   />
                   <h2 className="text-[11px] font-semibold text-t3">
-                    {title}
+                    {connector.label} {connector.nouns.workflowPlural}
                   </h2>
                   <span className="font-mono text-[10px] text-t3">
                     {rows.length}
@@ -330,32 +252,34 @@ export default function UnifiedPage() {
                         className="flex w-full cursor-pointer items-center gap-3 border-b border-line2 bg-panel px-4 py-2.5 text-left transition-colors last:border-b-0 hover:bg-hover"
                       >
                         <span
+                          aria-hidden="true"
                           className="size-[7px] flex-none rounded-full"
                           style={{
-                            background: appColor(w.source),
-                            boxShadow: `0 0 5px color-mix(in srgb, ${appColor(w.source)} 60%, transparent)`,
+                            background: providerColor(w.source),
+                            boxShadow: `0 0 5px color-mix(in srgb, ${providerColor(w.source)} 60%, transparent)`,
                           }}
                         />
                         <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium">
                           {w.name}
                         </span>
-                        {w.source === "ghl" && w.stepCount != null && (
+                        {w.stepCount != null && (
                           <span className="font-mono text-[10px] text-t3">
                             {w.stepCount} steps
                           </span>
                         )}
                         {w.talksToGhl && (
                           <span className="rounded-full border border-line bg-pill px-2 py-[2px] text-[9.5px] font-semibold text-t3">
-                            uses GHL
+                            {badgeTooltip("talksToGhl")}
                           </span>
                         )}
                         {li && (
                           <span
-                            className="rounded-full border px-2 py-[2px] text-[9.5px] font-semibold"
+                            className={`rounded-full border px-2 py-[2px] text-[9.5px] font-semibold ${
+                              li.dead ? "text-err-text" : "text-warn-text"
+                            }`}
                             style={{
-                              color: li.dead ? "#ef4444" : "#f59e0b",
-                              borderColor: `color-mix(in srgb, ${li.dead ? "#ef4444" : "#f59e0b"} 40%, transparent)`,
-                              background: `color-mix(in srgb, ${li.dead ? "#ef4444" : "#f59e0b"} 10%, transparent)`,
+                              borderColor: `color-mix(in srgb, var(${li.dead ? "--err" : "--warn"}) 40%, transparent)`,
+                              background: `color-mix(in srgb, var(${li.dead ? "--err" : "--warn"}) 10%, transparent)`,
                             }}
                           >
                             {li.out > 0 && `${li.out} out`}
@@ -364,7 +288,9 @@ export default function UnifiedPage() {
                             {li.dead && " · broken"}
                           </span>
                         )}
-                        <span className="text-[11px] text-t3">→</span>
+                        <span aria-hidden="true" className="text-[11px] text-t3">
+                          →
+                        </span>
                       </button>
                     );
                   })}

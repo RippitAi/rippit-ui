@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useTheme } from "next-themes";
 import {
   COS_TILT,
   EDGES,
@@ -56,7 +57,6 @@ export function Monitor({
   const [tab, setTab] = useState("output");
   const [paused, setPaused] = useState(false);
   const [tilt, setTilt] = useState(true);
-  const [dark, setDark] = useState(true);
   const [cam, setCam] = useState({ zoom: 0.5, panX: 380, panY: 240 });
   const [drag, setDrag] = useState(false);
   const [glide, setGlide] = useState(false);
@@ -92,13 +92,10 @@ export function Monitor({
     tiltRef.current = tilt;
   }, [paused, cam, tilt]);
 
-  const T = dark ? JS_THEMES.dark : JS_THEMES.light;
-
-  /* Theme class on <html> so all CSS variables flip */
-  useEffect(() => {
-    document.documentElement.classList.toggle("light", !dark);
-    return () => document.documentElement.classList.remove("light");
-  }, [dark]);
+  /* Theme comes from the app-wide next-themes provider (persisted, no-flash).
+     Only the JS-side canvas colors need the resolved value. */
+  const { resolvedTheme } = useTheme();
+  const T = resolvedTheme === "light" ? JS_THEMES.light : JS_THEMES.dark;
 
   /* ---------- geometry ---------- */
 
@@ -398,11 +395,15 @@ export function Monitor({
         ops={1284 + opsTick}
         errors={errCount}
         paused={paused}
-        dark={dark}
-        onToggleTheme={() => setDark((d) => !d)}
       />
 
-      <div className="relative overflow-hidden">
+      <main
+        id="main"
+        tabIndex={-1}
+        aria-label="Live workflow monitor"
+        className="relative overflow-hidden"
+      >
+        <h1 className="sr-only">Rippit Monitor — Lead Capture → Nurture</h1>
         {/* ---------- canvas ---------- */}
         <div
           ref={vp}
@@ -461,6 +462,7 @@ export function Monitor({
               }}
             >
               <svg
+                aria-hidden="true"
                 width={WORLD.w}
                 height={WORLD.h}
                 className="pointer-events-none absolute inset-0"
@@ -500,6 +502,10 @@ export function Monitor({
                   onPointerDown={(e) => nodeDown(e, n.id)}
                   onPointerMove={nodeMove}
                   onPointerUp={nodeUp}
+                  onActivate={() => {
+                    setSel(n.id);
+                    centerOn(n.id);
+                  }}
                 />
               ))}
             </div>
@@ -538,7 +544,7 @@ export function Monitor({
         />
 
         <Timeline incident={incident} errors={errCount} />
-      </div>
+      </main>
     </div>
   );
 }

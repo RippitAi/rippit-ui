@@ -22,8 +22,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { appColor, appGlyph, appName } from "@/lib/apps";
-import { useAllScenarios, useHierarchy } from "@/components/app/hierarchy";
+import { appColor, appGlyph, appName, onColorGradient } from "@/lib/apps";
+import { useMakeHierarchy } from "@/components/app/ConnectionsProvider";
+import { ErrorCard } from "@/components/shared/ErrorCard";
+import { Segmented } from "@/components/shared/Segmented";
+import { workflowHref } from "@/lib/portals";
 import type { Scenario } from "@/app/lib/api";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -36,30 +39,32 @@ function statusOf(s: Scenario): Status {
   return "inactive";
 }
 
+/* Status colors come from the theme tokens: text role for readable chip
+   text, graphic role for dots/tints (see globals.css). */
 const STATUS_META: Record<
   Status,
   { color: string; bg: string; border: string; label: string; dot: string }
 > = {
   active: {
-    color: "#22c55e",
-    bg: "rgba(34,197,94,.1)",
-    border: "rgba(34,197,94,.3)",
+    color: "var(--ok-text)",
+    bg: "color-mix(in srgb, var(--ok) 10%, transparent)",
+    border: "color-mix(in srgb, var(--ok) 30%, transparent)",
     label: "Active",
-    dot: "#22c55e",
+    dot: "var(--ok)",
   },
   paused: {
-    color: "#f59e0b",
-    bg: "rgba(245,158,11,.1)",
-    border: "rgba(245,158,11,.32)",
+    color: "var(--warn-text)",
+    bg: "color-mix(in srgb, var(--warn) 10%, transparent)",
+    border: "color-mix(in srgb, var(--warn) 32%, transparent)",
     label: "Paused",
-    dot: "#f59e0b",
+    dot: "var(--warn)",
   },
   inactive: {
-    color: "#a1a1aa",
-    bg: "rgba(128,128,140,.1)",
-    border: "rgba(128,128,140,.3)",
+    color: "var(--off-text)",
+    bg: "color-mix(in srgb, var(--off) 10%, transparent)",
+    border: "color-mix(in srgb, var(--off) 30%, transparent)",
     label: "Inactive",
-    dot: "#71717a",
+    dot: "var(--off)",
   },
 };
 
@@ -132,47 +137,17 @@ function AppPuck({ app, size = 34 }: { app: string; size?: number }) {
   const col = appColor(app);
   return (
     <div
+      aria-hidden="true"
       className="flex flex-none items-center justify-center rounded-[10px] border border-white/25 font-mono text-[11px] font-bold text-white"
       style={{
         width: size,
         height: size,
-        background: `linear-gradient(180deg, color-mix(in oklab, ${col} 78%, #ffffff) 0%, ${col} 55%, color-mix(in oklab, ${col} 80%, #000000) 100%)`,
+        background: onColorGradient(col),
         boxShadow: `0 3px 0 color-mix(in oklab, ${col} 55%, #000000), 0 6px 14px var(--ambient)`,
         textShadow: "0 1px 2px rgba(0,0,0,.3)",
       }}
     >
       {appGlyph(app)}
-    </div>
-  );
-}
-
-function SegmentedFilter({
-  value,
-  onChange,
-}: {
-  value: Status | "all";
-  onChange: (v: Status | "all") => void;
-}) {
-  return (
-    <div className="flex items-center gap-0.5 rounded-full border border-line bg-hover p-[3px]">
-      {(["all", "active", "paused", "inactive"] as const).map((f) => (
-        <button
-          key={f}
-          onClick={() => onChange(f)}
-          className={`relative cursor-pointer rounded-full px-2.5 py-[3px] text-[10.5px] font-semibold capitalize transition-colors duration-200 ${
-            value === f ? "text-bg" : "text-t3 hover:text-t1"
-          }`}
-        >
-          {value === f && (
-            <motion.span
-              layoutId="status-filter-pill"
-              transition={{ type: "spring", bounce: 0.25, duration: 0.45 }}
-              className="absolute inset-0 rounded-full bg-t1"
-            />
-          )}
-          <span className="relative z-10">{f}</span>
-        </button>
-      ))}
     </div>
   );
 }
@@ -190,7 +165,7 @@ function ScenarioRow({
   const primaryApp = scenario.usedPackages[0] || "make";
   return (
     <Link
-      href={`/scenarios/${scenario.id}`}
+      href={workflowHref({ source: "make", refId: String(scenario.id) })}
       className="group flex items-center justify-between gap-3 px-4 py-[11px] transition-colors hover:bg-hover"
     >
       <div className="flex min-w-0 items-center gap-3">
@@ -225,10 +200,12 @@ function ScenarioRow({
           style={{ color: st.color, background: st.bg, borderColor: st.border }}
         >
           <span
+            aria-hidden="true"
             className="size-[5px] rounded-full"
             style={{
               background: st.dot,
-              boxShadow: st.dot === "#71717a" ? "none" : `0 0 6px ${st.dot}`,
+              boxShadow:
+                st.dot === "var(--off)" ? "none" : `0 0 6px ${st.dot}`,
             }}
           />
           {st.label}
@@ -240,8 +217,24 @@ function ScenarioRow({
 }
 
 export default function DashboardPage() {
-  const { hierarchy, loading, error, disconnect } = useHierarchy();
-  const all = useAllScenarios();
+  const { hierarchy, loading, error, connection } = useMakeHierarchy();
+  const all = useMemo(() => {
+    if (!hierarchy) return [];
+    return hierarchy.teams.flatMap((t) => [
+      ...t.folders.flatMap((f) =>
+        f.scenarios.map((s) => ({
+          scenario: s,
+          team: t.name,
+          folder: f.name as string | null,
+        }))
+      ),
+      ...t.unfolderedScenarios.map((s) => ({
+        scenario: s,
+        team: t.name,
+        folder: null as string | null,
+      })),
+    ]);
+  }, [hierarchy]);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
 
@@ -274,37 +267,63 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex h-full items-center justify-center"
+      >
         <div className="text-center">
           <motion.div
+            aria-hidden="true"
             initial={{ opacity: 0, rotate: 0 }}
             animate={{ opacity: 1, rotate: 45 }}
             transition={{ duration: 0.7, ease: EASE }}
             className="mx-auto flex size-9 items-center justify-center rounded-[10px] bg-t1"
           >
-            <div className="size-2.5 animate-pulse rounded-full bg-bg" />
+            <div className="size-2.5 animate-pulse rounded-full bg-bg motion-reduce:animate-none" />
           </motion.div>
-          <p className="mt-4 text-[12px] text-t3">Loading organization…</p>
+          <p className="mt-4 text-[12px] text-t3">Loading workspace…</p>
         </div>
       </div>
     );
   }
 
-  if (error || !hierarchy) {
+  if (error) {
+    return (
+      <ErrorCard
+        title="Failed to load"
+        message={error}
+        backHref="/settings/connections"
+        backLabel="Manage connections"
+      />
+    );
+  }
+
+  if (!hierarchy) {
     return (
       <div className="flex h-full items-center justify-center p-4">
         <div className="card-sharp w-full max-w-md rounded-card border border-line bg-panel p-6 text-center backdrop-blur-[14px]">
-          <div className="mx-auto mb-3 flex size-9 items-center justify-center rounded-full border border-[rgba(239,68,68,.32)] bg-[rgba(239,68,68,.1)] text-[15px] font-bold text-err">
-            !
+          <h1 className="mb-1.5 text-[14px] font-semibold">
+            No Make connection yet
+          </h1>
+          <p className="mb-4 text-[12px] text-t2">
+            The dashboard summarizes your Make scenarios. Connect Make to see
+            it, or jump straight to the workflow map for other platforms.
+          </p>
+          <div className="flex items-center justify-center gap-4 text-[12px] font-semibold">
+            <Link
+              href="/settings/connections"
+              className="text-t1 underline-offset-4 hover:underline"
+            >
+              Connect Make
+            </Link>
+            <Link
+              href="/unified"
+              className="text-t1 underline-offset-4 hover:underline"
+            >
+              Workflow map
+            </Link>
           </div>
-          <h2 className="mb-1.5 text-[14px] font-semibold">Failed to load</h2>
-          <p className="mb-4 text-[12px] text-t2">{error || "No data"}</p>
-          <button
-            onClick={disconnect}
-            className="cursor-pointer text-[12px] font-semibold text-t1 underline-offset-4 hover:underline"
-          >
-            Reconnect with different credentials
-          </button>
         </div>
       </div>
     );
@@ -334,7 +353,7 @@ export default function DashboardPage() {
         </div>
         <div className="flex-1" />
         <span className="hidden rounded-[5px] border border-line bg-hover px-[7px] py-[3px] font-mono text-[9.5px] text-t2 sm:inline">
-          org {hierarchy.organizationId}
+          {connection?.label || `Make · ${hierarchy.organizationId}`}
         </span>
         <Button
           asChild
@@ -407,16 +426,25 @@ export default function DashboardPage() {
                   {filtered.length}
                 </span>
                 <div className="flex-1" />
-                <SegmentedFilter
+                <Segmented
+                  label="Filter scenarios by status"
                   value={statusFilter}
+                  options={(["all", "active", "paused", "inactive"] as const).map(
+                    (f) => ({ value: f, label: f })
+                  )}
                   onChange={setStatusFilter}
                 />
                 <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 size-3 -translate-y-1/2 text-t3" />
+                  <Search
+                    aria-hidden="true"
+                    className="absolute left-2.5 top-1/2 size-3 -translate-y-1/2 text-t3"
+                  />
                   <Input
+                    type="search"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search…"
+                    aria-label="Search scenarios"
                     className="h-[26px] w-[140px] rounded-full border-line bg-hover pl-7 text-[11px] placeholder:text-t3"
                   />
                 </div>
@@ -467,7 +495,11 @@ export default function DashboardPage() {
                     {health}% active
                   </span>
                 </div>
-                <div className="flex h-[8px] w-full gap-[2px] overflow-hidden rounded-full bg-hover">
+                <div
+                  role="img"
+                  aria-label={`Fleet health: ${counts.active} active, ${counts.paused} paused, ${counts.inactive} inactive`}
+                  className="flex h-[8px] w-full gap-[2px] overflow-hidden rounded-full bg-hover"
+                >
                   {(["active", "paused", "inactive"] as const).map((k) =>
                     counts[k] > 0 ? (
                       <motion.div
@@ -481,7 +513,7 @@ export default function DashboardPage() {
                           background:
                             k === "inactive"
                               ? "color-mix(in srgb, var(--off) 45%, transparent)"
-                              : STATUS_META[k].color,
+                              : STATUS_META[k].dot,
                         }}
                       />
                     ) : null
@@ -494,13 +526,9 @@ export default function DashboardPage() {
                       className="flex items-center gap-2 py-[7px] text-[11.5px] text-t2 first:pt-0 last:pb-0"
                     >
                       <span
+                        aria-hidden="true"
                         className="size-[7px] rounded-[2px]"
-                        style={{
-                          background:
-                            k === "inactive"
-                              ? "var(--off)"
-                              : STATUS_META[k].color,
-                        }}
+                        style={{ background: STATUS_META[k].dot }}
                       />
                       <span className="capitalize">{k}</span>
                       <span className="tabular ml-auto font-mono text-[10.5px] text-t3">
