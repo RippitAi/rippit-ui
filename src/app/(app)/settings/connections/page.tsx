@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { RefreshCw, Trash2 } from "lucide-react";
+import { getConnector as getConnectorDescriptor } from "@/lib/connectors";
+import type { ProviderId } from "@/lib/connectors/types";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useConnections } from "@/components/app/ConnectionsProvider";
 import {
@@ -108,17 +110,22 @@ function ConnectionRow({
 export default function ConnectionsPage() {
   const { connections, syncing, sync, disconnect, add, refresh } =
     useConnections();
+  const [watching, setWatching] = useState<ProviderId | null>(null);
 
   useEffect(() => {
     document.title = "Connections — Rippit";
   }, []);
 
   // Extension flows connect out-of-band; refresh periodically so a new
-  // location appears without a manual reload.
+  // location appears without a manual reload — faster while an
+  // extension-connect card is open.
+  const extensionOpen =
+    watching != null &&
+    getConnectorDescriptor(watching).connect.type === "extension";
   useEffect(() => {
-    const t = setInterval(refresh, 15000);
+    const t = setInterval(refresh, extensionOpen ? 5000 : 15000);
     return () => clearInterval(t);
-  }, [refresh]);
+  }, [refresh, extensionOpen]);
 
   return (
     <div className="flex h-full flex-col">
@@ -169,6 +176,8 @@ export default function ConnectionsPage() {
               onAdd={async (provider, values) => {
                 await add(provider, values);
               }}
+              pollingProvider={extensionOpen ? watching : null}
+              onExpandChange={setWatching}
             />
           </section>
         </div>

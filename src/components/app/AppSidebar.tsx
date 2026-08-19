@@ -198,17 +198,34 @@ export function AppSidebar() {
 
       <SidebarFooter className="border-t border-line2 pt-2">
         <div className="flex items-center gap-2 px-2 py-1 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-          <span
-            aria-hidden="true"
-            className="size-[7px] flex-none rounded-full bg-ok"
-            style={{
-              boxShadow: "0 0 8px var(--ok)",
-              animation: "blinkdot 1.6s infinite",
-            }}
-          />
-          <span className="text-[11.5px] font-semibold group-data-[collapsible=icon]:hidden">
-            Connected
-          </span>
+          {connections.length > 0 ? (
+            <>
+              <span
+                aria-hidden="true"
+                className="size-[7px] flex-none rounded-full bg-ok"
+                style={{
+                  boxShadow: "0 0 8px var(--ok)",
+                  animation: "blinkdot 1.6s infinite",
+                }}
+              />
+              <span className="text-[11.5px] font-semibold group-data-[collapsible=icon]:hidden">
+                Connected
+              </span>
+            </>
+          ) : (
+            <>
+              <span
+                aria-hidden="true"
+                className="size-[7px] flex-none rounded-full bg-off"
+              />
+              <Link
+                href="/settings/connections"
+                className="text-[11.5px] font-semibold text-t2 underline-offset-4 hover:text-t1 hover:underline group-data-[collapsible=icon]:hidden"
+              >
+                Connect a platform
+              </Link>
+            </>
+          )}
           <div className="ml-auto group-data-[collapsible=icon]:hidden">
             <ThemeToggle className="!size-6 !border-transparent hover:!bg-hover" />
           </div>

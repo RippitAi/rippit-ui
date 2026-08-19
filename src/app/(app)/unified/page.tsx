@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { Search } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -27,7 +28,12 @@ const cardId = (w: { source: string; refId: string }) =>
 
 export default function UnifiedPage() {
   const router = useRouter();
-  const { linkMap, loading: connectionsLoading, refresh } = useConnections();
+  const {
+    linkMap,
+    connections,
+    loading: connectionsLoading,
+    refresh,
+  } = useConnections();
   const [mode, setMode] = useState<"map" | "list">("map");
   // null = no explicit choice yet → default to linked-only unless there are no links
   const [linkedChoice, setLinkedChoice] = useState<boolean | null>(null);
@@ -121,6 +127,28 @@ export default function UnifiedPage() {
 
   if (connectionsLoading && !linkMap) {
     return <LoadingState message="Loading workflow map…" />;
+  }
+
+  if (!linkMap && connections.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center p-4">
+        <div className="card-sharp w-full max-w-md rounded-card border border-line bg-panel p-6 text-center backdrop-blur-[14px]">
+          <h1 className="mb-1.5 text-[14px] font-semibold">
+            Nothing connected yet
+          </h1>
+          <p className="mb-4 text-[12px] text-t2">
+            The workflow map shows how your automations link across platforms.
+            Connect Make or HighLevel to populate it.
+          </p>
+          <Link
+            href="/settings/connections"
+            className="text-[12px] font-semibold text-t1 underline-offset-4 hover:underline"
+          >
+            Open Connections
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   if (!linkMap) {
