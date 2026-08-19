@@ -7,7 +7,7 @@ import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/components/app/AuthProvider";
-import { supabase } from "@/lib/supabase";
+import { supabase, supabaseMisconfigured } from "@/lib/supabase";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -19,17 +19,6 @@ const TITLES: Record<Mode, string> = {
   otp: "We’ll email you a one-time code",
   "otp-verify": "Enter the code we emailed you",
 };
-
-function GoogleIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4">
-      <path
-        fill="currentColor"
-        d="M21.35 11.1H12v2.9h5.35c-.5 2.5-2.6 3.9-5.35 3.9a6 6 0 1 1 0-12c1.5 0 2.9.55 3.95 1.55l2.2-2.2A9 9 0 1 0 12 21c5.2 0 8.85-3.65 8.85-8.8 0-.35-.05-.75-.1-1.1Z"
-      />
-    </svg>
-  );
-}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -59,15 +48,6 @@ export default function LoginPage() {
     }
   };
 
-  const google = () =>
-    run(async () => {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: { redirectTo: `${window.location.origin}/login` },
-      });
-      if (error) throw error;
-    });
-
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (mode === "signin") {
@@ -80,7 +60,13 @@ export default function LoginPage() {
       });
     } else if (mode === "signup") {
       run(async () => {
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          // Confirmation links come back to the domain the app runs on,
+          // regardless of the Supabase project's Site URL default.
+          options: { emailRedirectTo: `${window.location.origin}/login` },
+        });
         if (error) throw error;
         if (!data.session) {
           setNotice("Check your email to confirm your account, then sign in.");
@@ -91,7 +77,10 @@ export default function LoginPage() {
       run(async () => {
         const { error } = await supabase.auth.signInWithOtp({
           email,
-          options: { shouldCreateUser: true },
+          options: {
+            shouldCreateUser: true,
+            emailRedirectTo: `${window.location.origin}/login`,
+          },
         });
         if (error) throw error;
         setNotice(`We sent a 6-digit code to ${email}.`);
@@ -149,21 +138,17 @@ export default function LoginPage() {
         </div>
 
         <div className="space-y-4 rounded-card border border-line bg-panel p-6 shadow-[0_12px_34px_var(--shade)] backdrop-blur-[14px]">
-          <Button
-            onClick={google}
-            disabled={busy}
-            className="h-auto w-full cursor-pointer rounded-control py-2.5 text-[12.5px] font-semibold hover:opacity-85 disabled:opacity-50"
-          >
-            <GoogleIcon />
-            Continue with Google
-          </Button>
-
-          <div className="flex items-center gap-3" aria-hidden="true">
-            <div className="h-px flex-1 bg-line2" />
-            <span className="text-[10px] font-semibold text-t3">or</span>
-            <div className="h-px flex-1 bg-line2" />
-          </div>
-
+          {supabaseMisconfigured() && (
+            <div
+              role="alert"
+              className="rounded-control border border-[color-mix(in_srgb,var(--warn)_32%,transparent)] bg-[color-mix(in_srgb,var(--warn)_10%,transparent)] px-3 py-2 text-[11.5px] leading-relaxed text-warn-text"
+            >
+              This deployment has no <code className="font-mono">NEXT_PUBLIC_SUPABASE_URL</code>{" "}
+              configured — sign-in requests are falling back to a local dev
+              address and will fail. Set the Supabase env vars in the hosting
+              dashboard and redeploy.
+            </div>
+          )}
           <form onSubmit={submit} className="space-y-4">
             {mode !== "otp-verify" && (
               <div>
@@ -257,8 +242,7 @@ export default function LoginPage() {
             <Button
               type="submit"
               disabled={busy}
-              variant="outline"
-              className="h-auto w-full cursor-pointer rounded-control border-line-strong bg-transparent py-2.5 text-[12.5px] font-semibold text-t1 hover:border-t1 hover:bg-transparent disabled:opacity-50"
+              className="h-auto w-full cursor-pointer rounded-control py-2.5 text-[12.5px] font-semibold hover:opacity-85 disabled:opacity-50"
             >
               {busy
                 ? "Working…"
