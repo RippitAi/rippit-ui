@@ -11,13 +11,14 @@ import { supabase, supabaseMisconfigured } from "@/lib/supabase";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
-type Mode = "signin" | "signup" | "otp" | "otp-verify";
+type Mode = "signin" | "signup" | "otp" | "otp-verify" | "forgot";
 
 const TITLES: Record<Mode, string> = {
   signin: "Sign in to your workspace",
   signup: "Create your account",
   otp: "We’ll email you a one-time code",
   "otp-verify": "Enter the code we emailed you",
+  forgot: "Reset your password",
 };
 
 export default function LoginPage() {
@@ -72,6 +73,16 @@ export default function LoginPage() {
           setNotice("Check your email to confirm your account, then sign in.");
           setMode("signin");
         }
+      });
+    } else if (mode === "forgot") {
+      run(async () => {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+        if (error) throw error;
+        setNotice(
+          `If an account exists for ${email}, a reset link is on its way.`
+        );
       });
     } else if (mode === "otp") {
       run(async () => {
@@ -175,12 +186,27 @@ export default function LoginPage() {
 
             {(mode === "signin" || mode === "signup") && (
               <div>
-                <label
-                  htmlFor="password"
-                  className="mb-1.5 block text-[11px] font-semibold text-t3"
-                >
-                  Password
-                </label>
+                <div className="mb-1.5 flex items-baseline justify-between">
+                  <label
+                    htmlFor="password"
+                    className="block text-[11px] font-semibold text-t3"
+                  >
+                    Password
+                  </label>
+                  {mode === "signin" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode("forgot");
+                        setError("");
+                        setNotice("");
+                      }}
+                      className="cursor-pointer text-[10.5px] text-t3 underline-offset-2 hover:text-t1 hover:underline"
+                    >
+                      Forgot?
+                    </button>
+                  )}
+                </div>
                 <Input
                   id="password"
                   type="password"
@@ -252,7 +278,9 @@ export default function LoginPage() {
                     ? "Create account"
                     : mode === "otp"
                       ? "Email me a code"
-                      : "Verify code"}
+                      : mode === "forgot"
+                        ? "Send reset link"
+                        : "Verify code"}
               {!busy && <ArrowRight aria-hidden="true" className="size-3.5" />}
             </Button>
           </form>
