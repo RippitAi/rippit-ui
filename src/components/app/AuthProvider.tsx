@@ -46,13 +46,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, next) => {
+    } = supabase.auth.onAuthStateChange((event, next) => {
       setSession(next);
       const nextId = next?.user.id ?? null;
       if (nextId !== lastUserId.current) {
         // user signed in/out/switched — anything cached for the old user is stale
         clearApiCaches();
         lastUserId.current = nextId;
+      }
+      // Recovery links can land anywhere (old bundles / dashboard-triggered
+      // resets default to the Site URL) — always steer them to the
+      // set-new-password form.
+      if (
+        event === "PASSWORD_RECOVERY" &&
+        window.location.pathname !== "/reset-password"
+      ) {
+        window.location.replace("/reset-password");
       }
     });
     return () => subscription.unsubscribe();

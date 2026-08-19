@@ -33,7 +33,14 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!loading && session) router.replace("/dashboard");
+    if (loading || !session) return;
+    // A recovery link that landed here must reach the set-password form,
+    // not bounce to the dashboard.
+    if (window.location.hash.includes("type=recovery")) {
+      router.replace("/reset-password");
+    } else {
+      router.replace("/dashboard");
+    }
   }, [loading, session, router]);
 
   const run = async (fn: () => Promise<void>) => {
