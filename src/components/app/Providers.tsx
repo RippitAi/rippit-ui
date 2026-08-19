@@ -2,6 +2,7 @@
 
 import { ThemeProvider } from "next-themes";
 import { MotionConfig } from "framer-motion";
+import { AuthProvider } from "./AuthProvider";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -12,7 +13,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       value={{ light: "light", dark: "dark" }}
       disableTransitionOnChange
     >
-      <MotionConfig reducedMotion="user">{children}</MotionConfig>
+      <AuthProvider>
+        <MotionConfig reducedMotion="user">{children}</MotionConfig>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

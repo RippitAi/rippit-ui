@@ -144,7 +144,7 @@ export default function UnifiedPage() {
             href="/settings/connections"
             className="text-[12px] font-semibold text-t1 underline-offset-4 hover:underline"
           >
-            Open Connections
+            Open Settings
           </Link>
         </div>
       </div>

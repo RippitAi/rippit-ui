@@ -8,7 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { fetchHierarchy, fetchLinks, Hierarchy, LinkMap } from "@/app/lib/api";
+import { fetchLinks, LinkMap } from "@/app/lib/api";
 import {
   addConnection,
   Connection,
@@ -71,6 +71,8 @@ export interface WorkflowIndexEntry {
   refId: string;
   name: string;
   live?: boolean;
+  status?: string | null;
+  app?: string;
   groupPath: string[];
   connectionId: string;
 }
@@ -86,6 +88,8 @@ export function useWorkflowIndex(): WorkflowIndexEntry[] {
             refId: item.refId,
             name: item.name,
             live: item.live,
+            status: item.status,
+            app: item.app,
             groupPath: item.groupPath,
             connectionId: conn.id,
           }))
@@ -93,48 +97,6 @@ export function useWorkflowIndex(): WorkflowIndexEntry[] {
       ),
     [connections, trees]
   );
-}
-
-/** Raw Make hierarchy for the dashboard (deduped with the sidebar tree). */
-export function useMakeHierarchy(): {
-  hierarchy: Hierarchy | null;
-  loading: boolean;
-  error: string;
-  connection: Connection | null;
-} {
-  const { connections, loading: connsLoading } = useConnections();
-  const conn = connections.find((c) => c.provider === "make") ?? null;
-  const [result, setResult] = useState<{
-    key: string;
-    hierarchy: Hierarchy | null;
-    error: string;
-  } | null>(null);
-
-  useEffect(() => {
-    if (!conn) return;
-    let cancelled = false;
-    fetchHierarchy(conn)
-      .then(
-        (h) =>
-          !cancelled && setResult({ key: conn.id, hierarchy: h, error: "" })
-      )
-      .catch(
-        (err) =>
-          !cancelled &&
-          setResult({ key: conn.id, hierarchy: null, error: err.message })
-      );
-    return () => {
-      cancelled = true;
-    };
-  }, [conn]);
-
-  const current = conn && result?.key === conn.id ? result : null;
-  return {
-    hierarchy: current?.hierarchy ?? null,
-    loading: connsLoading || (!!conn && !current),
-    error: current?.error ?? "",
-    connection: conn,
-  };
 }
 
 export function ConnectionsProvider({

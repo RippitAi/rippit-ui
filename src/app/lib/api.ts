@@ -1,4 +1,5 @@
 import type { ProviderId } from "@/lib/connectors/types";
+import { supabase } from "@/lib/supabase";
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -10,9 +11,34 @@ export class ApiError extends Error {
   }
 }
 
+/*
+ * Auth-failure hook: installed by AuthProvider (signOut + redirect to /login).
+ * Kept as a registered callback so this module stays React-free. Only 401s
+ * carrying `WWW-Authenticate: Bearer` trigger it — the backend also returns
+ * 401 for bad *connector* credentials (e.g. an invalid Make token on
+ * POST /connections), and those must surface as normal form errors.
+ */
+let authFailureHandler: (() => void) | null = null;
+
+export function setAuthFailureHandler(fn: (() => void) | null) {
+  authFailureHandler = fn;
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, init);
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const headers = new Headers(init?.headers);
+  if (session) headers.set("Authorization", `Bearer ${session.access_token}`);
+
+  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
   if (!res.ok) {
+    if (
+      res.status === 401 &&
+      res.headers.get("WWW-Authenticate")?.includes("Bearer")
+    ) {
+      authFailureHandler?.();
+    }
     const body = await res.json().catch(() => ({ detail: res.statusText }));
     throw new ApiError(body.detail || `API error ${res.status}`, res.status);
   }
@@ -28,52 +54,11 @@ export function apiPost<T>(path: string, body?: unknown): Promise<T> {
   });
 }
 
-/* ── backend-mode probe ───────────────────────────────────────────────────
-   The connector backend serves generic /connections; the legacy backend
-   404s there and keeps the old org-scoped Make + /ghl/* routes. Probed once
-   per session; every dual-mode fetcher below keys off it. */
-
-export interface BackendConnectionRow {
-  id: string;
-  provider: string;
-  external_id: string;
-  label: string | null;
-  status: string;
-  last_synced_at: string | null;
-}
-
-let backendProbe: Promise<BackendConnectionRow[] | null> | null = null;
-
-export function probeBackendConnections(): Promise<
-  BackendConnectionRow[] | null
-> {
-  if (!backendProbe) {
-    backendProbe = apiFetch<BackendConnectionRow[]>(`/connections`).catch(
-      (err) => {
-        if (err instanceof ApiError && err.status === 404) return null;
-        backendProbe = null; // network error: don't cache, retry next call
-        throw err;
-      }
-    );
-  }
-  return backendProbe;
-}
-
-export function invalidateBackendProbe() {
-  backendProbe = null;
-}
-
-export async function isLegacyBackend(): Promise<boolean> {
-  return (await probeBackendConnections()) === null;
-}
-
-/** Reference to a stored connection ("legacy:" ids come from the shim). */
+/** Reference to a stored connection. */
 export interface ConnRef {
   id: string;
   externalId: string;
 }
-
-const isLegacyConn = (conn: ConnRef) => conn.id.startsWith("legacy:");
 
 /* Node/edge ids: Make modules use numbers, GHL steps use UUID strings, and
    the unified graph namespaces both ("make:912:5", "ghl:<wf>:<step>"). */
@@ -170,17 +155,20 @@ export interface ScenarioDetail {
   created: string;
 }
 
-/* Deduped across the sidebar tree and the dashboard (same shell mount). */
+/* Deduped across the sidebar tree and the dashboard (same shell mount).
+   Cleared on auth changes via clearApiCaches(). */
 const hierarchyCache = new Map<string, Promise<Hierarchy>>();
+
+export function clearApiCaches() {
+  hierarchyCache.clear();
+}
 
 export function fetchHierarchy(
   conn: ConnRef,
   fresh = false
 ): Promise<Hierarchy> {
   if (fresh || !hierarchyCache.has(conn.id)) {
-    const p = isLegacyConn(conn)
-      ? apiFetch<Hierarchy>(`/organizations/${conn.externalId}/hierarchy`)
-      : apiFetch<Hierarchy>(`/connections/${conn.id}/hierarchy`);
+    const p = apiFetch<Hierarchy>(`/connections/${conn.id}/hierarchy`);
     p.catch(() => hierarchyCache.delete(conn.id));
     hierarchyCache.set(conn.id, p);
   }
@@ -190,50 +178,26 @@ export function fetchHierarchy(
 export async function fetchScenarioDetail(
   scenarioId: number
 ): Promise<ScenarioDetail> {
-  if (await isLegacyBackend()) {
-    return apiFetch(`/scenarios/${scenarioId}`);
-  }
   const raw = await apiFetch<{ scenario: ScenarioDetail }>(
     `/workflows/make/${scenarioId}/raw`
   );
   return raw.scenario;
 }
 
-export async function fetchScenarioSummary(
+export function fetchScenarioSummary(
   scenarioId: number
 ): Promise<ScenarioSummary> {
-  return (await isLegacyBackend())
-    ? apiFetch(`/scenarios/${scenarioId}/summary`)
-    : apiFetch(`/workflows/make/${scenarioId}/summary`);
+  return apiFetch(`/workflows/make/${scenarioId}/summary`);
 }
 
-export async function fetchModuleDetail(
+export function fetchModuleDetail(
   scenarioId: number,
   moduleId: number
 ): Promise<ModuleDetail> {
-  return (await isLegacyBackend())
-    ? apiFetch(`/scenarios/${scenarioId}/modules/${moduleId}`)
-    : apiFetch(`/workflows/make/${scenarioId}/nodes/${moduleId}`);
+  return apiFetch(`/workflows/make/${scenarioId}/nodes/${moduleId}`);
 }
 
 /* ─── GHL ──────────────────────────────────────────────────────────────── */
-
-export interface GhlConnection {
-  location_id: string;
-  company_id: string | null;
-  label: string | null;
-  status: "active" | "needs_reauth";
-  connected_at: string;
-  last_synced_at: string | null;
-}
-
-export interface GhlWorkflowListItem {
-  id: string;
-  location_id: string;
-  name: string;
-  status: string | null;
-  synced_at: string;
-}
 
 /** GHL summaries share the ScenarioSummary canvas contract. */
 export interface GhlWorkflowSummary extends ScenarioSummary {
@@ -241,42 +205,30 @@ export interface GhlWorkflowSummary extends ScenarioSummary {
   status?: string | null;
 }
 
-/* Legacy-backend-only routes (the connector backend removed them). */
-export function fetchGhlConnections(): Promise<GhlConnection[]> {
-  return apiFetch(`/ghl/connections`);
-}
-
-export function fetchGhlWorkflows(
-  locationId?: string
-): Promise<GhlWorkflowListItem[]> {
-  const q = locationId ? `?locationId=${encodeURIComponent(locationId)}` : "";
-  return apiFetch(`/ghl/workflows${q}`);
-}
-
-export async function fetchGhlWorkflowSummary(
+export function fetchGhlWorkflowSummary(
   workflowId: string
 ): Promise<GhlWorkflowSummary> {
-  return (await isLegacyBackend())
-    ? apiFetch(`/ghl/workflows/${workflowId}/summary`)
-    : apiFetch(`/workflows/ghl/${workflowId}/summary`);
+  return apiFetch(`/workflows/ghl/${workflowId}/summary`);
 }
 
-export async function fetchGhlStepDetail(
+export function fetchGhlStepDetail(
   workflowId: string,
   stepId: string
 ): Promise<Record<string, unknown>> {
-  return (await isLegacyBackend())
-    ? apiFetch(`/ghl/workflows/${workflowId}/steps/${stepId}`)
-    : apiFetch(`/workflows/ghl/${workflowId}/nodes/${stepId}`);
+  return apiFetch(`/workflows/ghl/${workflowId}/nodes/${stepId}`);
 }
 
-export function triggerGhlSync(
-  locationId: string
-): Promise<{ synced: number; errors: unknown[] }> {
-  return apiPost(`/ghl/locations/${encodeURIComponent(locationId)}/sync`);
+/* ─── Connections ──────────────────────────────────────────────────────── */
+
+export interface BackendConnectionRow {
+  id: string;
+  provider: string;
+  external_id: string;
+  label: string | null;
+  status: string;
+  last_synced_at: string | null;
 }
 
-/* Connector-backend workflow list for one connection. */
 export interface ConnectionWorkflowRow {
   connection_id: string;
   provider: ProviderId;
@@ -291,6 +243,18 @@ export function fetchConnectionWorkflows(
   connectionId: string
 ): Promise<ConnectionWorkflowRow[]> {
   return apiFetch(`/connections/${connectionId}/workflows`);
+}
+
+/* ─── Extension pairing ────────────────────────────────────────────────── */
+
+export interface PairingCode {
+  code: string;
+  expires_at: string;
+  ttl_seconds: number;
+}
+
+export function mintPairingCode(): Promise<PairingCode> {
+  return apiPost(`/pairing-codes`);
 }
 
 /* ─── Workflow-level link map ──────────────────────────────────────────── */
@@ -328,16 +292,6 @@ export interface LinkMap {
   stats: { workflows: number; links: number; deadLinks: number };
 }
 
-/**
- * Cross-platform link map. The connector backend serves an unkeyed `/links`;
- * the legacy backend only has the Make-org-scoped route.
- */
-export async function fetchLinks(): Promise<LinkMap> {
-  if (!(await isLegacyBackend())) {
-    return apiFetch<LinkMap>(`/links`);
-  }
-  const { getLegacyMakeOrgId } = await import("./connections-store");
-  const orgId = getLegacyMakeOrgId();
-  if (!orgId) throw new ApiError("No Make connection", 404);
-  return apiFetch(`/organizations/${orgId}/links`);
+export function fetchLinks(): Promise<LinkMap> {
+  return apiFetch(`/links`);
 }

@@ -47,6 +47,7 @@ export const makeConnector: ConnectorDescriptor = {
       refId: String(s.id),
       name: s.name,
       live: s.isActive && !s.isPaused,
+      status: s.isActive ? (s.isPaused ? "paused" : "active") : "inactive",
       app: s.usedPackages[0] || "make",
       groupPath: folder ? [team, folder] : [team],
     });

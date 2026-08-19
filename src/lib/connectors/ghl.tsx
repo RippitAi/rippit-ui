@@ -1,7 +1,6 @@
 import {
   fetchConnectionWorkflows,
   fetchGhlStepDetail,
-  fetchGhlWorkflows,
   fetchGhlWorkflowSummary,
 } from "@/app/lib/api";
 import StepDetailPanel from "@/components/connectors/ghl/StepDetailPanel";
@@ -34,23 +33,14 @@ export const ghlConnector: ConnectorDescriptor = {
 
   async fetchTree(conn) {
     const location = conn.label || conn.externalId;
-    const items = conn.id.startsWith("legacy:")
-      ? (await fetchGhlWorkflows(conn.externalId)).map((w) => ({
-          refId: w.id,
-          name: w.name,
-          live: w.status === "published",
-          status: w.status,
-          app: "ghl",
-          groupPath: [location],
-        }))
-      : (await fetchConnectionWorkflows(conn.id)).map((w) => ({
-          refId: w.external_id,
-          name: w.name,
-          live: w.is_active ?? w.status === "published",
-          status: w.status,
-          app: "ghl",
-          groupPath: [location],
-        }));
+    const items = (await fetchConnectionWorkflows(conn.id)).map((w) => ({
+      refId: w.external_id,
+      name: w.name,
+      live: w.is_active ?? w.status === "published",
+      status: w.status,
+      app: "ghl",
+      groupPath: [location],
+    }));
     return [
       {
         id: `location:${conn.externalId}`,

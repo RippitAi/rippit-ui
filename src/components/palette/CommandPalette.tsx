@@ -6,10 +6,10 @@ import { useTheme } from "next-themes";
 import {
   Activity,
   ArrowUpRight,
-  Cable,
   Crosshair,
   LayoutDashboard,
   Link2,
+  Settings,
   SunMoon,
   Workflow,
 } from "lucide-react";
@@ -34,7 +34,7 @@ const PAGES = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/unified", label: "Workflow map", icon: Workflow },
   { href: "/monitor", label: "Monitor", icon: Activity },
-  { href: "/settings/connections", label: "Connections", icon: Cable },
+  { href: "/settings/connections", label: "Settings", icon: Settings },
 ];
 
 export function CommandPalette() {

@@ -1,13 +1,18 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app/AppSidebar";
+import { useAuth } from "@/components/app/AuthProvider";
 import { ConnectionsProvider } from "@/components/app/ConnectionsProvider";
 import { PaletteProvider } from "@/components/palette/palette-context";
 import { CommandPalette } from "@/components/palette/CommandPalette";
+import { LoadingState } from "@/components/shared/LoadingState";
 
 /*
- * No connection gate: the app is always enterable. Pages render their own
+ * Auth gate (UX only — enforcement lives in the API): signed out → /login.
+ * Once signed in, the app is fully enterable; pages render their own
  * "connect a platform" empty states pointing at Settings → Connections.
  */
 export default function AppShellLayout({
@@ -15,8 +20,24 @@ export default function AppShellLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const router = useRouter();
+  const { session, user, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading && !session) router.replace("/login");
+  }, [loading, session, router]);
+
+  if (loading) {
+    return (
+      <div className="h-svh bg-bg">
+        <LoadingState message="Signing you in…" />
+      </div>
+    );
+  }
+  if (!session || !user) return null;
+
   return (
-    <ConnectionsProvider>
+    <ConnectionsProvider key={user.id}>
       <PaletteProvider>
         <SidebarProvider
           style={

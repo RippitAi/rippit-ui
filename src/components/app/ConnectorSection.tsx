@@ -47,7 +47,7 @@ export function ConnectorSection({
   const reauthHint =
     connector.connect.type === "extension"
       ? "Session expired — reconnect via the extension"
-      : "Session expired — reconnect from Connections";
+      : "Session expired — reconnect from Settings";
 
   const renderGroups: NavGroup[] =
     status === "ready" && groups.length > 0

@@ -2,11 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTheme } from "next-themes";
 import {
   Activity,
-  Cable,
+  ChevronsUpDown,
   LayoutDashboard,
+  LogOut,
   Search,
+  Settings,
+  SunMoon,
   Workflow,
 } from "lucide-react";
 import {
@@ -22,9 +26,17 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useAuth } from "./AuthProvider";
 import { useConnections } from "./ConnectionsProvider";
 import { ConnectorSection } from "./ConnectorSection";
-import { ThemeToggle } from "./ThemeToggle";
+import { UserAvatar } from "./UserAvatar";
 import { usePalette } from "@/components/palette/palette-context";
 
 const GROUP_LABEL =
@@ -37,6 +49,12 @@ export function AppSidebar() {
   const { connections, loading, trees, treeStatus, syncing, sync } =
     useConnections();
   const palette = usePalette();
+  const { user, signOut } = useAuth();
+  const { resolvedTheme, setTheme } = useTheme();
+
+  const meta = (user?.user_metadata ?? {}) as Record<string, unknown>;
+  const displayName =
+    (meta.full_name as string) || (meta.name as string) || user?.email || "";
 
   return (
     <Sidebar collapsible="icon">
@@ -130,7 +148,7 @@ export function AppSidebar() {
                   >
                     <Link href="/monitor">
                       <Activity aria-hidden="true" className="!size-[15px]" />
-                      <span>Monitor</span>
+                      <span>Monitor (Canopy)</span>
                       <span
                         aria-hidden="true"
                         className="ml-auto size-[6px] rounded-full bg-ok"
@@ -140,19 +158,6 @@ export function AppSidebar() {
                         }}
                       />
                       <span className="sr-only">(live)</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname === "/settings/connections"}
-                    tooltip="Connections"
-                    className={ITEM}
-                  >
-                    <Link href="/settings/connections">
-                      <Cable aria-hidden="true" className="!size-[15px]" />
-                      <span>Connections</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -196,40 +201,73 @@ export function AppSidebar() {
         </nav>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-line2 pt-2">
-        <div className="flex items-center gap-2 px-2 py-1 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-          {connections.length > 0 ? (
-            <>
-              <span
-                aria-hidden="true"
-                className="size-[7px] flex-none rounded-full bg-ok"
-                style={{
-                  boxShadow: "0 0 8px var(--ok)",
-                  animation: "blinkdot 1.6s infinite",
-                }}
-              />
-              <span className="text-[11.5px] font-semibold group-data-[collapsible=icon]:hidden">
-                Connected
-              </span>
-            </>
-          ) : (
-            <>
-              <span
-                aria-hidden="true"
-                className="size-[7px] flex-none rounded-full bg-off"
-              />
-              <Link
-                href="/settings/connections"
-                className="text-[11.5px] font-semibold text-t2 underline-offset-4 hover:text-t1 hover:underline group-data-[collapsible=icon]:hidden"
+      <SidebarFooter className="border-t border-line2 py-2">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton
+                  aria-label={`Account — ${user?.email ?? ""}`}
+                  className="h-11 gap-2.5 rounded-[8px] px-2 hover:bg-hover data-[state=open]:bg-hover group-data-[collapsible=icon]:justify-center"
+                >
+                  <UserAvatar user={user} />
+                  <span className="flex min-w-0 flex-1 flex-col text-left leading-tight group-data-[collapsible=icon]:hidden">
+                    <span className="truncate text-[12px] font-semibold">
+                      {displayName}
+                    </span>
+                    <span className="truncate font-mono text-[9.5px] text-t3">
+                      {user?.email}
+                    </span>
+                  </span>
+                  <ChevronsUpDown
+                    aria-hidden="true"
+                    className="size-3 flex-none text-t3 group-data-[collapsible=icon]:hidden"
+                  />
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                side="top"
+                align="start"
+                className="w-[218px] border-line bg-pill"
               >
-                Connect a platform
-              </Link>
-            </>
-          )}
-          <div className="ml-auto group-data-[collapsible=icon]:hidden">
-            <ThemeToggle className="!size-6 !border-transparent hover:!bg-hover" />
-          </div>
-        </div>
+                <DropdownMenuItem asChild className="gap-2 text-[12px]">
+                  <Link href="/settings/connections">
+                    <Settings aria-hidden="true" className="size-3.5" />
+                    Settings
+                    <span
+                      aria-hidden="true"
+                      className={`ml-auto size-[6px] rounded-full ${
+                        connections.length > 0 ? "bg-ok" : "bg-off"
+                      }`}
+                    />
+                    <span className="sr-only">
+                      {connections.length > 0
+                        ? `— ${connections.length} platform${connections.length > 1 ? "s" : ""} connected`
+                        : "— no platforms connected yet"}
+                    </span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="gap-2 text-[12px]"
+                  onClick={() =>
+                    setTheme(resolvedTheme === "dark" ? "light" : "dark")
+                  }
+                >
+                  <SunMoon aria-hidden="true" className="size-3.5" />
+                  Toggle theme
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-line2" />
+                <DropdownMenuItem
+                  className="gap-2 text-[12px]"
+                  onClick={signOut}
+                >
+                  <LogOut aria-hidden="true" className="size-3.5" />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
