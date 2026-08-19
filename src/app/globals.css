@@ -74,7 +74,7 @@
   --sidebar-primary-foreground: var(--bg);
   --sidebar-accent: var(--hover);
   --sidebar-accent-foreground: var(--text);
-  --sidebar-border: var(--line);
+  --sidebar-border: var(--line2);
   --sidebar-ring: var(--text);
 }
 
@@ -246,6 +246,25 @@ body {
   background: transparent;
 }
 
+/* Sidebar: hairline scrollbar that only shows while scrolling/hovering */
+[data-sidebar="content"] {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+[data-sidebar="content"]:hover {
+  scrollbar-color: rgba(128, 128, 140, 0.35) transparent;
+}
+[data-sidebar="content"]::-webkit-scrollbar {
+  width: 5px;
+}
+[data-sidebar="content"]::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+[data-sidebar="content"]:hover::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 140, 0.35);
+}
+
 /* Motion primitives from the handoff */
 @keyframes ddrift {
   to {
@@ -281,6 +300,17 @@ body {
 
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/*
+  While the command palette is open, stop painting the 3D canvas entirely.
+  Its perspective/preserve-3d layer stack triggers a Chrome GPU-compositing
+  bug on some machines that blanks the contents of surfaces drawn above it
+  (the palette rendered as an empty box). The palette's overlay dims the
+  page anyway, so nothing is visually lost.
+*/
+[data-palette-open] [data-canvas-3d] {
+  visibility: hidden;
 }
 
 /*

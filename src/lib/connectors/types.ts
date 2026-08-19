@@ -72,10 +72,18 @@ export interface NavItem {
   groupPath: string[];
 }
 
-export interface NavGroup {
+export interface NavFolder {
   id: string;
   label: string;
   items: NavItem[];
+}
+
+export interface NavGroup {
+  id: string;
+  label: string;
+  /** Items not inside any folder. */
+  items: NavItem[];
+  folders?: NavFolder[];
 }
 
 export interface ConnectorDescriptor {

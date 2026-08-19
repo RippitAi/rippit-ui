@@ -171,7 +171,9 @@ export function DetailPanelShell({
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 26 }}
       transition={{ duration: 0.4, ease: EASE }}
-      className="absolute bottom-3 right-3 top-3 z-[3] flex w-[360px] max-w-[calc(100vw-24px)] flex-col overflow-hidden rounded-card border border-line bg-panel shadow-[0_12px_34px_var(--shade)] backdrop-blur-[14px]"
+      // Opaque on purpose — backdrop-filter over the 3D-transformed canvas
+      // hits a Chrome compositing bug that can blank the panel's contents.
+      className="absolute bottom-3 right-3 top-3 z-[3] flex w-[360px] max-w-[calc(100vw-24px)] flex-col overflow-hidden rounded-card border border-line bg-pill shadow-[0_12px_34px_var(--shade)]"
     >
       {/* header */}
       <div className="flex items-center gap-[11px] border-b border-line2 px-4 pb-3 pt-3.5">

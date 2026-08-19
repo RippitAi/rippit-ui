@@ -456,7 +456,7 @@ export default function ScenarioCanvas({
   groups,
   selectedId,
   onNodeClick,
-  defaultTilt = true,
+  defaultTilt = false, // 2D first; the 3D tilt stays one "T" away
 }: {
   modules: ModuleInfo[];
   connections: Connection[];
@@ -917,6 +917,7 @@ export default function ScenarioCanvas({
 
   return (
     <div
+      data-canvas-3d
       className="absolute inset-0 overflow-hidden bg-vpbg"
       onKeyDown={canvasKeyDown}
     >

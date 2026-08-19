@@ -33,19 +33,40 @@ export const ghlConnector: ConnectorDescriptor = {
 
   async fetchTree(conn) {
     const location = conn.label || conn.externalId;
-    const items = (await fetchConnectionWorkflows(conn.id)).map((w) => ({
+    const rows = await fetchConnectionWorkflows(conn.id);
+    const item = (w: (typeof rows)[number]) => ({
       refId: w.external_id,
       name: w.name,
       live: w.is_active ?? w.status === "published",
       status: w.status,
       app: "ghl",
-      groupPath: [location],
-    }));
+      groupPath: w.folder ? [location, w.folder] : [location],
+    });
+    // Group by GHL directory (folder); unfoldered workflows stay at the root.
+    const byFolder = new Map<string, { label: string; rows: typeof rows }>();
+    const loose: typeof rows = [];
+    for (const w of rows) {
+      if (w.folder) {
+        const key = w.folder_id || w.folder;
+        const bucket = byFolder.get(key) ?? { label: w.folder, rows: [] };
+        bucket.rows.push(w);
+        byFolder.set(key, bucket);
+      } else {
+        loose.push(w);
+      }
+    }
     return [
       {
         id: `location:${conn.externalId}`,
         label: `GHL · ${location}`,
-        items,
+        items: loose.map(item),
+        folders: [...byFolder.entries()]
+          .sort((a, b) => a[1].label.localeCompare(b[1].label))
+          .map(([id, bucket]) => ({
+            id: `dir:${id}`,
+            label: bucket.label,
+            items: bucket.rows.map(item),
+          })),
       },
     ];
   },

@@ -51,16 +51,26 @@ export const makeConnector: ConnectorDescriptor = {
       app: s.usedPackages[0] || "make",
       groupPath: folder ? [team, folder] : [team],
     });
-    return hierarchy.teams.map((team) => ({
-      id: `team:${team.id}`,
-      label: team.name,
-      items: [
-        ...team.folders.flatMap((f) =>
-          f.scenarios.map((s) => item(s, team.name, f.name))
+    // One section per connection, headed like GHL's ("Make · {org}") —
+    // folders inside; team names only prefix folder labels when the org
+    // actually has multiple teams.
+    const multiTeam = hierarchy.teams.length > 1;
+    return [
+      {
+        id: `org:${conn.externalId}`,
+        label: `Make · ${conn.label || conn.externalId}`,
+        items: hierarchy.teams.flatMap((team) =>
+          team.unfolderedScenarios.map((s) => item(s, team.name, null))
         ),
-        ...team.unfolderedScenarios.map((s) => item(s, team.name, null)),
-      ],
-    }));
+        folders: hierarchy.teams.flatMap((team) =>
+          team.folders.map((f) => ({
+            id: `folder:${f.id}`,
+            label: multiTeam ? `${team.name} / ${f.name}` : f.name,
+            items: f.scenarios.map((s) => item(s, team.name, f.name)),
+          }))
+        ),
+      },
+    ];
   },
 
   async loadWorkflow(id) {

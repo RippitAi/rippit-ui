@@ -34,10 +34,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "./AuthProvider";
-import { useConnections } from "./ConnectionsProvider";
+import { useConnections, useWorkflowIndex } from "./ConnectionsProvider";
 import { ConnectorSection } from "./ConnectorSection";
 import { UserAvatar } from "./UserAvatar";
 import { usePalette } from "@/components/palette/palette-context";
+import { useState } from "react";
 
 const GROUP_LABEL =
   "h-7 px-2 text-[10px] font-semibold tracking-[0.02em] text-t3";
@@ -51,10 +52,17 @@ export function AppSidebar() {
   const palette = usePalette();
   const { user, signOut } = useAuth();
   const { resolvedTheme, setTheme } = useTheme();
+  const [filter, setFilter] = useState("");
+  const index = useWorkflowIndex();
 
   const meta = (user?.user_metadata ?? {}) as Record<string, unknown>;
   const displayName =
     (meta.full_name as string) || (meta.name as string) || user?.email || "";
+
+  const q = filter.trim().toLowerCase();
+  const matchCount = q
+    ? index.filter((w) => w.name.toLowerCase().includes(q)).length
+    : null;
 
   return (
     <Sidebar collapsible="icon">
@@ -84,21 +92,37 @@ export function AppSidebar() {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              onClick={palette.open}
-              className={`${ITEM} border border-line-strong bg-hover`}
-              tooltip="Search (⌘K)"
-            >
-              <Search className="!size-[13px]" aria-hidden="true" />
-              <span className="text-t3">Search…</span>
-              <kbd
+          <SidebarMenuItem className="group-data-[collapsible=icon]:hidden">
+            {/* Always-visible search: filters the workflow tree as you type.
+                ⌘K (or the kbd chip) opens the global palette. */}
+            <div className="relative flex items-center">
+              <Search
                 aria-hidden="true"
-                className="ml-auto rounded-[4px] border border-line px-1 font-mono text-[9px] text-t3 group-data-[collapsible=icon]:hidden"
+                className="pointer-events-none absolute left-2.5 size-[13px] text-t3"
+              />
+              <input
+                type="search"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder="Search workflows…"
+                aria-label="Filter workflows in the sidebar"
+                className="h-8 w-full rounded-control border border-line bg-hover pl-8 pr-11 text-[12px] text-t1 transition-colors placeholder:text-t3 hover:border-line-strong focus:border-line-strong"
+              />
+              <button
+                onClick={palette.open}
+                aria-label="Open command palette (⌘K)"
+                className="absolute right-1.5 cursor-pointer rounded-[4px] border border-line px-1 py-px font-mono text-[9px] text-t3 transition-colors hover:border-line-strong hover:text-t1"
               >
                 ⌘K
-              </kbd>
-            </SidebarMenuButton>
+              </button>
+            </div>
+            {matchCount !== null && (
+              <p role="status" className="mt-1 px-1 text-[10px] text-t3">
+                {matchCount === 0
+                  ? "No workflows match"
+                  : `${matchCount} workflow${matchCount > 1 ? "s" : ""} match`}
+              </p>
+            )}
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
@@ -172,6 +196,7 @@ export function AppSidebar() {
               groups={trees[conn.id] ?? []}
               status={treeStatus[conn.id] ?? "loading"}
               syncing={syncing === conn.id}
+              filter={filter}
               onSync={() => sync(conn)}
             />
           ))}
@@ -269,7 +294,6 @@ export function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
-      <SidebarRail />
     </Sidebar>
   );
 }

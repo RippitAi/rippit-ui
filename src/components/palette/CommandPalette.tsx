@@ -56,6 +56,14 @@ export function CommandPalette() {
     return () => window.removeEventListener("keydown", onKey);
   }, [isOpen, setOpen]);
 
+  // Stop painting the 3D canvas while the palette is up: layers from its
+  // perspective/preserve-3d stack trigger a Chrome GPU bug that can blank
+  // overlaid surfaces (see [data-palette-open] rule in globals.css).
+  useEffect(() => {
+    document.documentElement.toggleAttribute("data-palette-open", isOpen);
+    return () => document.documentElement.removeAttribute("data-palette-open");
+  }, [isOpen]);
+
   const byConnection = useMemo(() => {
     return connections.map((conn) => ({
       conn,

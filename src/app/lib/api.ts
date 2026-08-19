@@ -237,6 +237,9 @@ export interface ConnectionWorkflowRow {
   status: string | null;
   is_active: boolean | null;
   synced_at: string;
+  /** Platform folder/directory the workflow lives in, when the provider has them. */
+  folder?: string | null;
+  folder_id?: string | null;
 }
 
 export function fetchConnectionWorkflows(

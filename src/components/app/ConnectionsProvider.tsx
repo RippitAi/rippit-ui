@@ -83,16 +83,18 @@ export function useWorkflowIndex(): WorkflowIndexEntry[] {
     () =>
       connections.flatMap((conn) =>
         (trees[conn.id] ?? []).flatMap((g) =>
-          g.items.map((item) => ({
-            provider: conn.provider,
-            refId: item.refId,
-            name: item.name,
-            live: item.live,
-            status: item.status,
-            app: item.app,
-            groupPath: item.groupPath,
-            connectionId: conn.id,
-          }))
+          [...g.items, ...(g.folders ?? []).flatMap((f) => f.items)].map(
+            (item) => ({
+              provider: conn.provider,
+              refId: item.refId,
+              name: item.name,
+              live: item.live,
+              status: item.status,
+              app: item.app,
+              groupPath: item.groupPath,
+              connectionId: conn.id,
+            })
+          )
         )
       ),
     [connections, trees]

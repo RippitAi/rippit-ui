@@ -18,10 +18,11 @@ const eslintConfig = defineConfig([
       "jsx-a11y/no-noninteractive-element-interactions": "warn",
       "jsx-a11y/no-static-element-interactions": "warn",
       // The canvas viewport (role="group") is intentionally focusable so
-      // keyboard users can pan/zoom it.
+      // keyboard users can pan/zoom it, and the sidebar resize handle is an
+      // ARIA window splitter (focusable separator with aria-valuenow).
       "jsx-a11y/no-noninteractive-tabindex": [
         "error",
-        { roles: ["tabpanel", "group"] },
+        { roles: ["tabpanel", "group", "separator"] },
       ],
     },
   },
