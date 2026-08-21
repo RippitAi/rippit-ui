@@ -93,11 +93,111 @@ export interface Hierarchy {
   teams: Team[];
 }
 
+/** Wait/sleep duration as the API computed it (null when not a wait). */
+export interface WaitFor {
+  seconds: number | null;
+  text: string;
+}
+
+/** One runtime execution (Make) — status + timing + failing module, never payloads. */
+export interface Execution {
+  executionId: string;
+  status: "success" | "warning" | "error" | "incomplete" | "unknown";
+  startedAt: string | null;
+  durationMs: number | null;
+  operations: number | null;
+  errorName: string | null;
+  errorMessage: string | null;
+  causeModuleId: string | null;
+  meta: Record<string, unknown>;
+}
+
+export interface ExecutionsResponse {
+  supported: boolean;
+  reason?: string;
+  executions: Execution[];
+  fetchedAt: string | null;
+  refreshing?: boolean;
+}
+
+export function fetchExecutions(
+  provider: ProviderId,
+  externalId: string,
+  refresh = false
+): Promise<ExecutionsResponse> {
+  return apiFetch<ExecutionsResponse>(
+    `/workflows/${provider}/${encodeURIComponent(externalId)}/executions${refresh ? "?refresh=true" : ""}`
+  );
+}
+
+export interface LastRun {
+  status: Execution["status"];
+  at: string | null;
+  executionId?: string;
+}
+
+/** Manual tag (per user). */
+export interface Tag {
+  id: string;
+  name: string;
+  color: string | null;
+  source?: "manual" | "auto";
+  workflows?: number;
+}
+
+export function fetchTags(): Promise<Tag[]> {
+  return apiFetch<Tag[]>(`/tags`);
+}
+
+export function createTag(name: string, color?: string | null): Promise<Tag> {
+  return apiPost<Tag>(`/tags`, { name, color: color ?? null });
+}
+
+export function deleteTag(id: string): Promise<{ deleted: string }> {
+  return apiFetch(`/tags/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function setWorkflowTags(
+  provider: ProviderId,
+  externalId: string,
+  tagIds: string[]
+): Promise<{ tags: Tag[] }> {
+  return apiFetch(`/workflows/${provider}/${encodeURIComponent(externalId)}/tags`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tagIds }),
+  });
+}
+
+/** Structural issue from the link map (see implemented/errors.md). */
+export interface Issue {
+  code: string;
+  severity: "error" | "warn" | "info";
+  provider: ProviderId;
+  workflowExternalId: string | null;
+  nodeId: string | null;
+  message: string;
+  data: Record<string, unknown>;
+}
+
+export interface IssueCounts {
+  error: number;
+  warn: number;
+  info: number;
+}
+
 export interface ModuleInfo {
   id: NodeId;
   module: string;
   app: string;
   label: string;
+  /** Humanized "what it does" (API-generated; names only, never ids/URLs). */
+  summary?: string;
+  /** Execution-order label ("1", "2.1.3", "4.A.2"); null for triggers/orphans. */
+  ordinal?: string | null;
+  waitFor?: WaitFor | null;
+  /** Structural issues on this node (summary responses). */
+  issues?: Issue[];
   depth: number;
   x: number | null;
   y: number | null;
@@ -130,6 +230,12 @@ export interface ModuleDetail {
   metadata: Record<string, unknown> | null;
   version: number | null;
   flags: Record<string, unknown> | null;
+  /** Canvas enrichment merged in by the API (same as ModuleInfo). */
+  summary?: string;
+  ordinal?: string | null;
+  waitFor?: WaitFor | null;
+  kind?: string;
+  assets?: AssetRef[];
 }
 
 export interface ScenarioSummary {
@@ -138,6 +244,89 @@ export interface ScenarioSummary {
   appsUsed: string[];
   modules: ModuleInfo[];
   connections: Connection[];
+  /** Deep link into the platform's own editor (server-built, zone/team aware). */
+  nativeUrl?: string | null;
+  /** Structural issues for the whole workflow (node-level ones repeat on modules). */
+  issues?: Issue[];
+}
+
+/** One asset / value a node references (from the reference index). */
+export interface AssetRef {
+  kind: string;
+  value: string;
+  label: string | null;
+  url: string | null;
+  dynamic: boolean;
+  node_id?: string | null;
+  provider?: ProviderId;
+  meta?: Record<string, unknown>;
+}
+
+export interface RefUse {
+  provider: ProviderId;
+  connectionId: string;
+  connectionLabel: string | null;
+  workflowExternalId: string;
+  workflowName: string | null;
+  workflowStatus: string | null;
+  isActive: boolean | null;
+  nodeId: string | null;
+  dynamic: boolean;
+}
+
+export interface RefUses {
+  kind: string;
+  value: string;
+  label: string | null;
+  url: string | null;
+  workflows: number;
+  uses: RefUse[];
+}
+
+export type SearchHitType = "workflow" | "node" | "asset" | "tag";
+
+export interface SearchHit {
+  type: SearchHitType;
+  provider: ProviderId | null;
+  connectionId: string | null;
+  connectionLabel: string | null;
+  workflowExternalId: string | null;
+  workflowName: string | null;
+  label: string | null;
+  secondary?: string | null;
+  nodeId?: string | null;
+  kind?: string | null;
+  app?: string | null;
+  ordinal?: string | null;
+  value?: string;
+  url?: string | null;
+  dynamic?: boolean;
+  status?: string | null;
+  isActive?: boolean | null;
+  /** tag hits */
+  tagId?: string;
+  color?: string | null;
+  workflows?: number;
+}
+
+/** Typed server search (workflows · nodes · assets) over the user's estate. */
+export function searchEstate(q: string, limit = 20): Promise<{ query: string; results: SearchHit[] }> {
+  const qs = new URLSearchParams({ q, limit: String(limit) });
+  return apiFetch<{ query: string; results: SearchHit[] }>(`/search?${qs.toString()}`);
+}
+
+export function fetchRefUses(kind: string, value: string): Promise<RefUses> {
+  const qs = new URLSearchParams({ kind, value });
+  return apiFetch<RefUses>(`/refs/uses?${qs.toString()}`);
+}
+
+export function fetchWorkflowRefs(
+  provider: ProviderId,
+  externalId: string
+): Promise<{ refs: AssetRef[] }> {
+  return apiFetch<{ refs: AssetRef[] }>(
+    `/workflows/${provider}/${encodeURIComponent(externalId)}/refs`
+  );
 }
 
 export interface ScenarioDetail {
@@ -240,6 +429,7 @@ export interface ConnectionWorkflowRow {
   /** Platform folder/directory the workflow lives in, when the provider has them. */
   folder?: string | null;
   folder_id?: string | null;
+  tags?: Tag[];
 }
 
 export function fetchConnectionWorkflows(
@@ -286,15 +476,52 @@ export interface WorkflowCard {
   stepCount?: number;
   isActive?: boolean;
   talksToGhl?: boolean;
+  issueCounts?: IssueCounts;
+  tags?: Tag[];
+  lastRun?: LastRun;
+}
+
+/** An asset referenced by more than one workflow ("both touch Sheet X"). */
+export interface AssetLink {
+  kind: string;
+  value: string;
+  label: string | null;
+  url: string | null;
+  workflows: { source: ProviderId; refId: string; nodes: string[] }[];
 }
 
 export interface LinkMap {
   workflows: WorkflowCard[];
   links: WorkflowLink[];
   unmatched: (LinkEnd & { udid: string })[];
-  stats: { workflows: number; links: number; deadLinks: number };
+  assetLinks?: AssetLink[];
+  issues?: Issue[];
+  stats: {
+    workflows: number;
+    links: number;
+    deadLinks: number;
+    sharedAssets?: number;
+    issues?: number;
+    issueErrors?: number;
+  };
 }
 
 export function fetchLinks(): Promise<LinkMap> {
   return apiFetch(`/links`);
+}
+
+/** Node-level composed graph across workflows (GET /graph). Node ids are
+ * "{provider}:{workflowId}:{nodeId}"; groups prefix their members. */
+export interface GraphData {
+  groups: { id: string; source: ProviderId; name: string; refId: string }[];
+  nodes: ModuleInfo[];
+  connections: Connection[];
+  stats: { groups: number; crossLinks: number; deadLinks: number };
+}
+
+export function fetchGraph(keys: { source: ProviderId; refId: string }[] = []): Promise<GraphData> {
+  const qs = keys.length
+    ? `?workflows=${encodeURIComponent(keys.map((k) => `${k.source}:${k.refId}`).join(","))}`
+    : "";
+  return apiFetch<GraphData>(`/graph${qs}`);
 }

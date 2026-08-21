@@ -30,6 +30,12 @@ import {
 } from "@/components/app/ConnectionsProvider";
 import { getConnector, providerColor } from "@/lib/connectors";
 import { Segmented } from "@/components/shared/Segmented";
+import { useSearchParams } from "next/navigation";
+import { useTags } from "@/components/tags/tags-context";
+import { TagChip } from "@/components/tags/TagChip";
+import { TagFilter, matchesTags } from "@/components/tags/TagFilter";
+import type { Tag, LastRun } from "@/app/lib/api";
+import { LastRunChip } from "@/components/shared/RunsPanel";
 import { workflowHref } from "@/lib/portals";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -154,7 +160,7 @@ function AppPuck({ app, size = 34 }: { app: string; size?: number }) {
   );
 }
 
-function WorkflowRow({ workflow }: { workflow: WorkflowIndexEntry }) {
+function WorkflowRow({ workflow, tags, lastRun }: { workflow: WorkflowIndexEntry; tags?: Tag[]; lastRun?: LastRun }) {
   const st = STATUS_META[toneOf(workflow)];
   const connector = getConnector(workflow.provider);
   return (
@@ -194,6 +200,17 @@ function WorkflowRow({ workflow }: { workflow: WorkflowIndexEntry }) {
         </div>
       </div>
       <div className="flex flex-none items-center gap-2.5">
+        {lastRun && (lastRun.status === "error" || lastRun.status === "incomplete") && (
+          <LastRunChip status={lastRun.status} at={lastRun.at} />
+        )}
+        {tags && tags.length > 0 && (
+          <span className="hidden items-center gap-1 md:flex">
+            {tags.slice(0, 3).map((t) => (
+              <TagChip key={t.id} tag={t} size="xs" />
+            ))}
+            {tags.length > 3 && <span className="text-[9.5px] text-t3">+{tags.length - 3}</span>}
+          </span>
+        )}
         <span
           className="inline-flex w-[74px] items-center justify-center gap-1.5 rounded-full border px-2 py-[3px] text-[10px] font-semibold"
           style={{ color: st.color, background: st.bg, borderColor: st.border }}
@@ -219,6 +236,23 @@ export default function DashboardPage() {
   const all = useWorkflowIndex();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<Tone | "all">("all");
+  const { tags: allTags } = useTags();
+  const searchParams = useSearchParams();
+  const [tagFilter, setTagFilter] = useState<string[]>(() => {
+    const t = searchParams.get("tag");
+    return t ? [t] : [];
+  });
+  const lastRunByKey = useMemo(() => {
+    const m = new Map<string, LastRun>();
+    for (const w of linkMap?.workflows ?? []) if (w.lastRun) m.set(`${w.source}:${w.refId}`, w.lastRun);
+    return m;
+  }, [linkMap]);
+  /* tags per workflow come with the link map (merged per request) */
+  const tagsByKey = useMemo(() => {
+    const m = new Map<string, Tag[]>();
+    for (const w of linkMap?.workflows ?? []) if (w.tags?.length) m.set(`${w.source}:${w.refId}`, w.tags);
+    return m;
+  }, [linkMap]);
 
   useEffect(() => {
     document.title = "Dashboard — Rippit";
@@ -240,6 +274,7 @@ export default function DashboardPage() {
     const q = query.trim().toLowerCase();
     return all.filter((w) => {
       if (statusFilter !== "all" && toneOf(w) !== statusFilter) return false;
+      if (!matchesTags(tagsByKey.get(`${w.provider}:${w.refId}`), tagFilter)) return false;
       if (!q) return true;
       return (
         w.name.toLowerCase().includes(q) ||
@@ -247,7 +282,7 @@ export default function DashboardPage() {
         w.provider.includes(q)
       );
     });
-  }, [all, query, statusFilter]);
+  }, [all, query, statusFilter, tagFilter, tagsByKey]);
 
   if (loading) {
     return (
@@ -355,8 +390,13 @@ export default function DashboardPage() {
               label="Cross-links"
               value={linkMap?.stats.links ?? 0}
               caption={
-                linkMap && linkMap.stats.deadLinks > 0
-                  ? `${linkMap.stats.deadLinks} broken`
+                linkMap && (linkMap.stats.deadLinks > 0 || (linkMap.stats.issueErrors ?? 0) > 0)
+                  ? [
+                      linkMap.stats.deadLinks > 0 ? `${linkMap.stats.deadLinks} broken` : null,
+                      (linkMap.stats.issueErrors ?? 0) > 0 ? `${linkMap.stats.issueErrors} error issues` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")
                   : undefined
               }
               icon={<Link2 className="size-[15px]" />}
@@ -376,6 +416,7 @@ export default function DashboardPage() {
                   {filtered.length}
                 </span>
                 <div className="flex-1" />
+                <TagFilter tags={allTags} selected={tagFilter} onChange={setTagFilter} />
                 <Segmented
                   label="Filter workflows by status"
                   value={statusFilter}
@@ -436,7 +477,11 @@ export default function DashboardPage() {
                         exit={{ opacity: 0, scale: 0.98 }}
                         transition={{ duration: 0.25, ease: EASE }}
                       >
-                        <WorkflowRow workflow={w} />
+                        <WorkflowRow
+                          workflow={w}
+                          tags={tagsByKey.get(`${w.provider}:${w.refId}`)}
+                          lastRun={lastRunByKey.get(`${w.provider}:${w.refId}`)}
+                        />
                       </motion.div>
                     ))
                   )}

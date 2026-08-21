@@ -42,7 +42,41 @@ const CENTER_INSETS = { left: 20, right: 392, top: 70, bottom: 20 };
    (would corrupt Kahn columns); the cross-system kinds connect separate
    workflow groups that lay out independently. All are still rendered. */
 const CROSS_KINDS = new Set(["webhook-call", "api-call", "subflow"]);
-const NON_LAYOUT_KINDS = new Set(["goto", ...CROSS_KINDS]);
+/* "Both touch the same asset" edges (unified map) — informational, dotted,
+   never laid out or pulsed. */
+const ASSET_KINDS = new Set(["shared-asset"]);
+
+const SEVERITY_VAR = { error: "--err", warn: "--warn", info: "--off" } as const;
+
+export function worstSeverity(
+  issues: { severity: "error" | "warn" | "info" }[] | undefined
+): "error" | "warn" | "info" | null {
+  if (!issues || issues.length === 0) return null;
+  if (issues.some((i) => i.severity === "error")) return "error";
+  if (issues.some((i) => i.severity === "warn")) return "warn";
+  return "info";
+}
+
+/** "2.1.3" → "3rd in route 1 after step 2" style phrase for tooltips/aria. */
+export function ordinalPhrase(ordinal: string): string {
+  const parts = ordinal.split(".");
+  if (parts.length === 1) return `${ordinal}${ordinalSuffix(Number(ordinal))}`;
+  // a.b.c… — last segment is the position inside the branch named by the
+  // previous segment ("2.1.3" → step 3 of route 1 under step 2).
+  const pos = parts[parts.length - 1];
+  const branch = parts[parts.length - 2];
+  const parent = parts.slice(0, -2).join(".");
+  const branchKind = /^[A-Z]$/.test(branch) ? "branch" : "route";
+  return `${pos}${ordinalSuffix(Number(pos))} in ${branchKind} ${branch}${parent ? ` after step ${parent}` : ""}`;
+}
+
+function ordinalSuffix(n: number): string {
+  if (!Number.isFinite(n)) return "";
+  const v = n % 100;
+  if (v >= 11 && v <= 13) return "th";
+  return ["th", "st", "nd", "rd"][n % 10] ?? "th";
+}
+const NON_LAYOUT_KINDS = new Set(["goto", ...CROSS_KINDS, ...ASSET_KINDS]);
 
 /* Group container paddings around a group's node bounding box. */
 const GROUP_PAD_X = 110;
@@ -64,6 +98,11 @@ interface CanvasNode {
   hasErrorHandler: boolean;
   badge?: string;
   kind?: string;
+  summary?: string;
+  ordinal?: string | null;
+  waitText?: string | null;
+  issueSeverity?: "error" | "warn" | "info" | null;
+  issueText?: string | null;
 }
 
 interface GroupBox {
@@ -520,6 +559,11 @@ export default function ScenarioCanvas({
           hasErrorHandler: m.hasErrorHandler,
           badge: m.badge,
           kind: m.kind,
+          summary: m.summary,
+          ordinal: m.ordinal ?? null,
+          waitText: m.waitFor?.text ?? null,
+          issueSeverity: worstSeverity(m.issues),
+          issueText: m.issues?.map((i) => i.message).join(" · ") ?? null,
         };
       }),
     [modules, layout, pos]
@@ -870,6 +914,13 @@ export default function ScenarioCanvas({
     [zoomBy, toggle3d]
   );
 
+  // Programmatic selection (palette / search / ?node= deep link) also
+  // brings the node into view — clicks already center via DOM focus.
+  useEffect(() => {
+    if (selectedId != null) centerOn(selectedId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
   const nodeAriaLabel = useCallback(
     (n: CanvasNode) => {
       if (n.kind === "portal") {
@@ -880,8 +931,13 @@ export default function ScenarioCanvas({
           n.badge === "deadLink" ? " (link broken)" : ""
         }`;
       }
-      const parts = [n.label, appName(n.app)];
+      const parts = [n.label];
+      if (n.summary && n.summary !== n.label) parts.push(n.summary);
+      else parts.push(appName(n.app));
+      if (n.ordinal) parts.push(`step ${n.ordinal}`);
       if (n.kind === "trigger") parts.push("trigger");
+      if (n.kind === "wait" && n.waitText) parts.push(n.waitText);
+      if (n.issueText) parts.push(`issue: ${n.issueText}`);
       if (n.hasFilter) parts.push(n.filterName ? `filtered: ${n.filterName}` : "filtered");
       if (n.hasErrorHandler) parts.push("has error handler");
       if (n.badge) {
@@ -1063,24 +1119,27 @@ export default function ScenarioCanvas({
             {edges.map((e) => {
               const isGoto = e.kind === "goto";
               const isCross = CROSS_KINDS.has(e.kind ?? "");
+              const isAsset = ASSET_KINDS.has(e.kind ?? "");
               const isDead = e.status === "dead";
-              const stroke = isCross
-                ? isDead
-                  ? "var(--err)"
-                  : "var(--warn)"
-                : "var(--edge)";
+              const stroke = isAsset
+                ? "var(--t3)"
+                : isCross
+                  ? isDead
+                    ? "var(--err)"
+                    : "var(--warn)"
+                  : "var(--edge)";
               return (
-                <g key={e.key} opacity={isGoto ? 0.55 : 1}>
+                <g key={e.key} opacity={isGoto ? 0.55 : isAsset ? 0.8 : 1}>
                   <path
                     d={e.d}
                     fill="none"
                     stroke={stroke}
                     strokeWidth={isCross ? 2 : 1.5}
                     strokeDasharray={
-                      isGoto ? "6 6" : isCross ? "8 6" : undefined
+                      isGoto ? "6 6" : isCross ? "8 6" : isAsset ? "2 5" : undefined
                     }
                   />
-                  {!lite && !isGoto && !isCross && (
+                  {!lite && !isGoto && !isCross && !isAsset && (
                     <path
                       d={e.d}
                       fill="none"
@@ -1359,6 +1418,19 @@ export default function ScenarioCanvas({
                           }}
                         />
                       )}
+                      {n.issueSeverity && (
+                        <div
+                          aria-hidden="true"
+                          title={n.issueText ?? undefined}
+                          className="absolute -bottom-[3px] -left-[3px] flex size-3.5 items-center justify-center rounded-full border-2 border-plane text-[8px] font-bold leading-none text-white"
+                          style={{
+                            background: `var(${SEVERITY_VAR[n.issueSeverity]})`,
+                            boxShadow: `0 0 8px var(${SEVERITY_VAR[n.issueSeverity]})`,
+                          }}
+                        >
+                          !
+                        </div>
+                      )}
                       {n.badge && (
                         <div
                           aria-hidden="true"
@@ -1375,17 +1447,35 @@ export default function ScenarioCanvas({
                       )}
                     </div>
                     <div className="flex flex-col items-center gap-[3px]">
-                      <div
-                        className="max-w-[220px] truncate whitespace-nowrap rounded-full bg-pill px-3 py-1 text-[13px] font-semibold text-t1"
-                        style={{
-                          border: `1px solid ${selected ? "var(--ringc)" : "var(--line)"}`,
-                          boxShadow: "0 4px 14px var(--shade)",
-                        }}
-                      >
-                        {n.label}
+                      <div className="flex max-w-[240px] items-center gap-1">
+                        {n.ordinal && (
+                          <span
+                            aria-hidden="true"
+                            title={`Fires ${ordinalPhrase(n.ordinal)}`}
+                            className="shrink-0 rounded-full border border-line bg-pill px-1.5 py-[2px] font-mono text-[9.5px] font-semibold leading-none text-t3 tabular"
+                          >
+                            {n.ordinal}
+                          </span>
+                        )}
+                        <div
+                          className="min-w-0 truncate whitespace-nowrap rounded-full bg-pill px-3 py-1 text-[13px] font-semibold text-t1"
+                          style={{
+                            border: `1px solid ${selected ? "var(--ringc)" : "var(--line)"}`,
+                            boxShadow: "0 4px 14px var(--shade)",
+                          }}
+                        >
+                          {n.label}
+                        </div>
                       </div>
-                      <div className="max-w-[200px] truncate whitespace-nowrap text-[10.5px] text-t2">
-                        {appName(n.app)}
+                      <div
+                        className="max-w-[200px] truncate whitespace-nowrap text-[10.5px] text-t2"
+                        title={n.summary && n.summary !== n.label ? n.summary : undefined}
+                      >
+                        {n.kind === "wait" && n.waitText
+                          ? n.waitText
+                          : n.summary && n.summary !== n.label
+                            ? n.summary
+                            : appName(n.app)}
                         {n.hasFilter && (
                           <span className="text-warn-text"> · filtered</span>
                         )}

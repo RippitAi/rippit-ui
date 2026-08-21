@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Search } from "lucide-react";
@@ -11,17 +11,30 @@ import {
   Connection,
   ModuleInfo,
   NodeId,
+  fetchGraph,
+  GraphData,
 } from "@/app/lib/api";
-import { parseWorkflowId, workflowHref } from "@/lib/portals";
+import { parseWorkflowId, workflowHref, WorkflowRef } from "@/lib/portals";
+import { isProviderId } from "@/lib/connectors";
+import { kindLabel } from "@/components/shared/AssetsSection";
+import { IssueCountChips } from "@/components/shared/IssuesSection";
+import { LastRunChip } from "@/components/shared/RunsPanel";
+import { useTags } from "@/components/tags/tags-context";
+import { TagChip } from "@/components/tags/TagChip";
+import { TagFilter, matchesTags } from "@/components/tags/TagFilter";
 import { useConnections } from "@/components/app/ConnectionsProvider";
 import { allConnectors, badgeTooltip, providerColor } from "@/lib/connectors";
 import ScenarioCanvas from "@/components/canvas/ScenarioCanvas";
 import { StatChip } from "@/components/shared/StatChip";
+import { Legend } from "@/components/canvas/Legend";
 import { Segmented } from "@/components/shared/Segmented";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { ErrorCard } from "@/components/shared/ErrorCard";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
+/* Node-level view renders at most this many auto-selected workflows; bigger
+   estates must pick a linked set (readability — see brainstorm/mvp/04). */
+const DETAIL_AUTO_MAX = 12;
 
 const cardId = (w: { source: string; refId: string }) =>
   `${w.source}:${w.refId}`;
@@ -34,7 +47,24 @@ export default function UnifiedPage() {
     loading: connectionsLoading,
     refresh,
   } = useConnections();
-  const [mode, setMode] = useState<"map" | "list">("map");
+  const searchParams = useSearchParams();
+  const initialView = searchParams.get("view");
+  const [mode, setMode] = useState<"map" | "detail" | "list">(
+    initialView === "detail" ? "detail" : initialView === "list" ? "list" : "map"
+  );
+  // Node-level "linked set": explicit ?focus=make:912,ghl:wf1 or the
+  // engine's auto-selected linkable set.
+  const focus = useMemo<WorkflowRef[]>(() => {
+    const raw = searchParams.get("focus") ?? "";
+    return raw
+      .split(",")
+      .map((t) => parseWorkflowId(t.trim()))
+      .filter((r): r is WorkflowRef => !!r && isProviderId(r.source));
+  }, [searchParams]);
+  const [graph, setGraph] = useState<{ key: string; data?: GraphData; error?: string } | null>(null);
+  const [showAssets, setShowAssets] = useState(false);
+  const { tags: allTags } = useTags();
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
   // null = no explicit choice yet → default to linked-only unless there are no links
   const [linkedChoice, setLinkedChoice] = useState<boolean | null>(null);
   const linkedOnly = linkedChoice ?? (linkMap ? linkMap.stats.links > 0 : true);
@@ -43,6 +73,20 @@ export default function UnifiedPage() {
   useEffect(() => {
     document.title = "Workflow map — Rippit";
   }, []);
+
+  const focusKey = focus.map((f) => `${f.source}:${f.refId}`).join(",");
+  useEffect(() => {
+    if (mode !== "detail") return;
+    let live = true;
+    fetchGraph(focus)
+      .then((d) => live && setGraph({ key: focusKey, data: d }))
+      .catch((e: Error) => live && setGraph({ key: focusKey, error: e.message }));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, focusKey]);
+  const graphCurrent = graph && graph.key === focusKey ? graph : null;
 
   /* Per-workflow link involvement (for filtering + list badges). */
   const linkInfo = useMemo(() => {
@@ -61,11 +105,22 @@ export default function UnifiedPage() {
     return info;
   }, [linkMap]);
 
+  /* Workflows that share at least one asset with another (for "Linked only"
+     when assets are shown). */
+  const assetLinkedIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const a of linkMap?.assetLinks ?? []) for (const w of a.workflows) ids.add(cardId(w));
+    return ids;
+  }, [linkMap]);
+
   /* Map data: one node per workflow, links as orange edges. */
   const mapData = useMemo(() => {
     if (!linkMap) return null;
-    let workflows = linkMap.workflows;
-    if (linkedOnly) workflows = workflows.filter((w) => linkInfo.has(cardId(w)));
+    let workflows = linkMap.workflows.filter((w) => matchesTags(w.tags, tagFilter));
+    if (linkedOnly)
+      workflows = workflows.filter(
+        (w) => linkInfo.has(cardId(w)) || (showAssets && assetLinkedIds.has(cardId(w)))
+      );
     const nodeIds = new Set(workflows.map(cardId));
     const modules: ModuleInfo[] = workflows.map((w) => ({
       id: cardId(w),
@@ -81,6 +136,12 @@ export default function UnifiedPage() {
       source: w.source,
       kind: "workflow-card",
       badge: w.talksToGhl && !linkInfo.has(cardId(w)) ? "talksToGhl" : undefined,
+      issues:
+        w.issueCounts && (w.issueCounts.error > 0 || w.issueCounts.warn > 0)
+          ? (linkMap.issues ?? []).filter(
+              (i) => i.provider === w.source && String(i.workflowExternalId) === String(w.refId) && i.severity !== "info"
+            )
+          : undefined,
     }));
     const connections: Connection[] = linkMap.links
       .filter((l) => nodeIds.has(cardId(l.from)) && nodeIds.has(cardId(l.to)))
@@ -91,13 +152,49 @@ export default function UnifiedPage() {
         status: l.status,
         label: l.kind === "subflow" ? "subflow" : "webhook",
       }));
+    if (showAssets) {
+      // "Both touch Sheet X": one dotted edge per pair per asset (chain the
+      // workflows so N users of one asset draw N-1 edges, not N²).
+      const seen = new Set<string>();
+      for (const a of linkMap.assetLinks ?? []) {
+        const members = a.workflows.map(cardId).filter((id) => nodeIds.has(id));
+        for (let i = 1; i < members.length; i++) {
+          const key = `${members[i - 1]}|${members[i]}|${a.kind}:${a.value}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          connections.push({
+            from: members[i - 1],
+            to: members[i],
+            kind: "shared-asset",
+            label: a.label || kindLabel(a.kind),
+          });
+        }
+      }
+    }
     return { modules, connections };
-  }, [linkMap, linkedOnly, linkInfo]);
+  }, [linkMap, linkedOnly, linkInfo, showAssets, assetLinkedIds, tagFilter]);
 
   const handleMapClick = useCallback(
     (nodeId: NodeId) => {
       const ref = parseWorkflowId(nodeId);
       if (ref) router.push(workflowHref(ref));
+    },
+    [router]
+  );
+
+  /* Detail (node-level) view: node ids are "{provider}:{wf}:{node}" → open
+     that workflow with the node selected. */
+  const handleDetailClick = useCallback(
+    (nodeId: NodeId) => {
+      const s = String(nodeId);
+      const first = s.indexOf(":");
+      const second = s.indexOf(":", first + 1);
+      if (first < 0 || second < 0) return;
+      const source = s.slice(0, first);
+      if (!isProviderId(source)) return;
+      const refId = s.slice(first + 1, second);
+      const node = s.slice(second + 1);
+      router.push(`${workflowHref({ source, refId })}?node=${encodeURIComponent(node)}`);
     },
     [router]
   );
@@ -108,6 +205,7 @@ export default function UnifiedPage() {
     const q = query.trim().toLowerCase();
     const match = (w: WorkflowCard) =>
       (!q || w.name.toLowerCase().includes(q)) &&
+      matchesTags(w.tags, tagFilter) &&
       (!linkedOnly || linkInfo.has(cardId(w)));
     const sortByLinks = (a: WorkflowCard, b: WorkflowCard) => {
       const la = linkInfo.get(cardId(a));
@@ -123,7 +221,7 @@ export default function UnifiedPage() {
         .filter((w) => w.source === connector.id && match(w))
         .sort(sortByLinks),
     }));
-  }, [linkMap, query, linkedOnly, linkInfo]);
+  }, [linkMap, query, linkedOnly, linkInfo, tagFilter]);
 
   if (connectionsLoading && !linkMap) {
     return <LoadingState message="Loading workflow map…" />;
@@ -182,10 +280,22 @@ export default function UnifiedPage() {
           value={mode}
           options={[
             { value: "map", label: "Map" },
+            { value: "detail", label: "Detail" },
             { value: "list", label: "List" },
           ]}
           onChange={setMode}
         />
+        {mode === "map" && (linkMap.assetLinks?.length ?? 0) > 0 && (
+          <Segmented
+            label="Shared assets"
+            value={showAssets ? "on" : "off"}
+            options={[
+              { value: "off", label: "Calls" },
+              { value: "on", label: `+ Assets (${linkMap.assetLinks!.length})` },
+            ]}
+            onChange={(v) => setShowAssets(v === "on")}
+          />
+        )}
         <Segmented
           label="Workflow filter"
           value={linkedOnly ? "linked" : "all"}
@@ -195,6 +305,9 @@ export default function UnifiedPage() {
           ]}
           onChange={(v) => setLinkedChoice(v === "linked")}
         />
+        {allTags.length > 0 && mode !== "detail" && (
+          <TagFilter tags={allTags} selected={tagFilter} onChange={setTagFilter} />
+        )}
         <div className="flex-1" />
         <div className="hidden items-center gap-3.5 md:flex">
           <StatChip label="Showing" value={String(showing)} />
@@ -202,10 +315,98 @@ export default function UnifiedPage() {
           <StatChip label="Cross-links" value={String(linkMap.stats.links)} />
           <div className="h-[22px] w-px bg-line" aria-hidden="true" />
           <StatChip label="Broken" value={String(linkMap.stats.deadLinks)} />
+          {(linkMap.stats.issueErrors ?? 0) > 0 && (
+            <>
+              <div className="h-[22px] w-px bg-line" aria-hidden="true" />
+              <StatChip label="Errors" value={String(linkMap.stats.issueErrors)} />
+            </>
+          )}
+          {mode === "detail" && graphCurrent?.data && (
+            <>
+              <div className="h-[22px] w-px bg-line" aria-hidden="true" />
+              <StatChip label="Workflows" value={String(graphCurrent.data.stats.groups)} />
+            </>
+          )}
         </div>
       </header>
 
-      {mode === "map" ? (
+      {mode === "detail" ? (
+        <div className="relative overflow-hidden">
+          {graphCurrent?.data ? (
+            graphCurrent.data.groups.length === 0 || (focus.length === 0 && graphCurrent.data.groups.length > DETAIL_AUTO_MAX) ? (
+              <div className="flex h-full items-center justify-center p-4">
+                <div className="card-sharp max-w-md rounded-card border border-line bg-panel p-6 text-center">
+                  <h2 className="mb-1.5 text-[14px] font-semibold">
+                    {graphCurrent.data.groups.length === 0 ? "No linked set to show" : "Pick a linked set"}
+                  </h2>
+                  <p className="text-[12px] text-t2">
+                    {graphCurrent.data.groups.length === 0
+                      ? "The node-level view composes workflows that call each other. Open a workflow with cross-platform links and use “View linked set”, or connect more platforms."
+                      : `${graphCurrent.data.groups.length} linkable workflows is too many to read at node level. Open one of them and use “View linked set” to see just its neighbourhood.`}
+                  </p>
+                  {graphCurrent.data.groups.length > 0 && (
+                    <ul className="mt-3 flex max-h-[40vh] flex-wrap justify-center gap-1.5 overflow-auto">
+                      {graphCurrent.data.groups.map((g) => (
+                        <li key={g.id}>
+                          <Link
+                            href={workflowHref({ source: g.source, refId: g.refId })}
+                            className="flex items-center gap-1.5 rounded-full border border-line bg-pill px-2.5 py-1 text-[10px] font-semibold text-t2 hover:text-t1"
+                          >
+                            <span aria-hidden="true" className="size-[7px] rounded-[2px]" style={{ background: providerColor(g.source) }} />
+                            <span className="max-w-[200px] truncate">{g.name}</span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <ScenarioCanvas
+                key={`detail:${focusKey}`}
+                modules={graphCurrent.data.nodes}
+                connections={graphCurrent.data.connections}
+                groups={graphCurrent.data.groups}
+                onNodeClick={handleDetailClick}
+                defaultTilt={false}
+              />
+            )
+          ) : graphCurrent?.error ? (
+            <ErrorCard
+              title="Failed to compose the linked set"
+              message={graphCurrent.error}
+              onRetry={() => setGraph(null)}
+            />
+          ) : (
+            <LoadingState message="Composing linked workflows…" />
+          )}
+          <div className="absolute bottom-3 left-4 z-[2]">
+            <Legend />
+          </div>
+          {graphCurrent?.data && graphCurrent.data.groups.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: EASE, delay: 0.35 }}
+              className="absolute left-4 top-3 z-[2] flex max-w-[70%] flex-wrap items-center gap-1.5"
+            >
+              <span className="pointer-events-none rounded-full border border-line bg-glass px-2.5 py-1 text-[10px] font-semibold text-t2 backdrop-blur-[8px]">
+                {focus.length > 0 ? "Linked set" : "Auto-selected linkable set"} · click a step to open it
+              </span>
+              {graphCurrent.data.groups.map((g) => (
+                <Link
+                  key={g.id}
+                  href={workflowHref({ source: g.source, refId: g.refId })}
+                  className="flex items-center gap-1.5 rounded-full border border-line bg-glass px-2.5 py-1 text-[10px] font-semibold text-t2 backdrop-blur-[8px] hover:text-t1"
+                >
+                  <span aria-hidden="true" className="size-[7px] rounded-[2px]" style={{ background: providerColor(g.source) }} />
+                  <span className="max-w-[160px] truncate">{g.name}</span>
+                </Link>
+              ))}
+            </motion.div>
+          )}
+        </div>
+      ) : mode === "map" ? (
         <div className="relative overflow-hidden">
           <ScenarioCanvas
             key={linkedOnly ? "linked" : "all"}
@@ -214,6 +415,9 @@ export default function UnifiedPage() {
             onNodeClick={handleMapClick}
             defaultTilt={false}
           />
+          <div className="absolute bottom-3 left-4 z-[2]">
+            <Legend />
+          </div>
           <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -295,6 +499,13 @@ export default function UnifiedPage() {
                             {w.stepCount} steps
                           </span>
                         )}
+                        {w.tags?.slice(0, 2).map((t) => (
+                          <TagChip key={t.id} tag={t} size="xs" />
+                        ))}
+                        {w.lastRun && (w.lastRun.status === "error" || w.lastRun.status === "incomplete") && (
+                          <LastRunChip status={w.lastRun.status} at={w.lastRun.at} />
+                        )}
+                        <IssueCountChips counts={w.issueCounts} />
                         {w.talksToGhl && (
                           <span className="rounded-full border border-line bg-pill px-2 py-[2px] text-[9.5px] font-semibold text-t3">
                             {badgeTooltip("talksToGhl")}

@@ -172,16 +172,11 @@ export function AppSidebar() {
                   >
                     <Link href="/monitor">
                       <Activity aria-hidden="true" className="!size-[15px]" />
-                      <span>Monitor (Canopy)</span>
-                      <span
-                        aria-hidden="true"
-                        className="ml-auto size-[6px] rounded-full bg-ok"
-                        style={{
-                          boxShadow: "0 0 6px var(--ok)",
-                          animation: "blinkdot 1.6s infinite",
-                        }}
-                      />
-                      <span className="sr-only">(live)</span>
+                      <span>Monitor</span>
+                      <span className="ml-auto rounded-full border border-line px-1.5 py-[1px] text-[9px] font-semibold text-t3">
+                        preview
+                      </span>
+                      <span className="sr-only">(preview — sample data)</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

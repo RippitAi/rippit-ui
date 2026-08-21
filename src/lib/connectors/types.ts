@@ -53,6 +53,10 @@ export interface DetailPanelProps {
   loading: boolean;
   error?: boolean;
   onClose: () => void;
+  /** "Find all uses" for one of the node's referenced assets. */
+  onFindUses?: (ref: { kind: string; value: string; label?: string | null }) => void;
+  /** Structural issues on the selected node (from the workflow summary). */
+  issues?: import("@/app/lib/api").Issue[];
 }
 
 /** Minimal connection info descriptors need (avoids importing the store). */

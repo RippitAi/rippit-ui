@@ -11,6 +11,7 @@ import { AppSidebar } from "@/components/app/AppSidebar";
 import { useAuth } from "@/components/app/AuthProvider";
 import { ConnectionsProvider } from "@/components/app/ConnectionsProvider";
 import { PaletteProvider } from "@/components/palette/palette-context";
+import { TagsProvider } from "@/components/tags/tags-context";
 import { CommandPalette } from "@/components/palette/CommandPalette";
 import { LoadingState } from "@/components/shared/LoadingState";
 
@@ -117,6 +118,7 @@ export default function AppShellLayout({
 
   return (
     <ConnectionsProvider key={user.id}>
+      <TagsProvider>
       <PaletteProvider>
         <SidebarProvider
           style={
@@ -138,6 +140,7 @@ export default function AppShellLayout({
         </SidebarProvider>
         <CommandPalette />
       </PaletteProvider>
+      </TagsProvider>
     </ConnectionsProvider>
   );
 }

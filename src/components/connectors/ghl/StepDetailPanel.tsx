@@ -9,6 +9,9 @@ import {
   KvRow,
   Section,
 } from "@/components/shared/DetailPanelKit";
+import { AssetsSection } from "@/components/shared/AssetsSection";
+import { IssuesSection } from "@/components/shared/IssuesSection";
+import type { AssetRef } from "@/app/lib/api";
 
 /* GHL steps: {id, name, type, attributes, next, parentKey, order}
    GHL triggers: {id, name, type, conditions, active, ...} */
@@ -19,6 +22,8 @@ export default function StepDetailPanel({
   loading,
   error,
   onClose,
+  onFindUses,
+  issues,
 }: DetailPanelProps) {
   const step = data as GhlStep | null;
   if (!loading && !error && !step) return null;
@@ -33,6 +38,10 @@ export default function StepDetailPanel({
       ? (attributes?.url as string | undefined)
       : undefined;
   const branches = attributes?.branches as unknown[] | undefined;
+  const summary = step?.summary as string | undefined;
+  const ordinal = step?.ordinal as string | null | undefined;
+  const waitFor = step?.waitFor as { text: string } | null | undefined;
+  const assets = step?.assets as AssetRef[] | undefined;
 
   return (
     <DetailPanelShell
@@ -46,6 +55,21 @@ export default function StepDetailPanel({
     >
       {step && (
         <>
+          {(summary || ordinal || waitFor) && (
+            <Section title="What it does">
+              <div className="flex flex-col">
+                {summary && <KvRow k="Does" v={summary} />}
+                {ordinal && (
+                  <KvRow k="Fires" v={<span className="font-mono">{ordinal}</span>} />
+                )}
+                {waitFor && <KvRow k="Waits" v={waitFor.text} />}
+              </div>
+            </Section>
+          )}
+
+          <IssuesSection issues={issues} onFindUses={onFindUses} />
+          <AssetsSection assets={assets} onFindUses={onFindUses} />
+
           <Section title="Step identity">
             <div className="flex flex-col">
               <KvRow

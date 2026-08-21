@@ -10,12 +10,16 @@ import {
   KvRow,
   Section,
 } from "@/components/shared/DetailPanelKit";
+import { AssetsSection } from "@/components/shared/AssetsSection";
+import { IssuesSection } from "@/components/shared/IssuesSection";
 
 export default function ModuleDetailPanel({
   data,
   loading,
   error,
   onClose,
+  onFindUses,
+  issues,
 }: DetailPanelProps) {
   const mod = data as ModuleDetail | null;
   if (!loading && !error && !mod) return null;
@@ -34,6 +38,21 @@ export default function ModuleDetailPanel({
     >
       {mod && (
         <>
+          {(mod.summary || mod.ordinal || mod.waitFor) && (
+            <Section title="What it does">
+              <div className="flex flex-col">
+                {mod.summary && <KvRow k="Does" v={mod.summary} />}
+                {mod.ordinal && (
+                  <KvRow k="Fires" v={<span className="font-mono">{mod.ordinal}</span>} />
+                )}
+                {mod.waitFor && <KvRow k="Waits" v={mod.waitFor.text} />}
+              </div>
+            </Section>
+          )}
+
+          <IssuesSection issues={issues} onFindUses={onFindUses} />
+          <AssetsSection assets={mod.assets} onFindUses={onFindUses} />
+
           <Section title="Module identity">
             <div className="flex flex-col">
               <KvRow k="ID" v={mod.id} />
