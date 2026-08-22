@@ -103,6 +103,8 @@ interface CanvasNode {
   waitText?: string | null;
   issueSeverity?: "error" | "warn" | "info" | null;
   issueText?: string | null;
+  changed?: boolean;
+  commentCount?: number;
 }
 
 interface GroupBox {
@@ -564,6 +566,8 @@ export default function ScenarioCanvas({
           waitText: m.waitFor?.text ?? null,
           issueSeverity: worstSeverity(m.issues),
           issueText: m.issues?.map((i) => i.message).join(" · ") ?? null,
+          changed: m.changed,
+          commentCount: m.commentCount,
         };
       }),
     [modules, layout, pos]
@@ -938,6 +942,8 @@ export default function ScenarioCanvas({
       if (n.kind === "trigger") parts.push("trigger");
       if (n.kind === "wait" && n.waitText) parts.push(n.waitText);
       if (n.issueText) parts.push(`issue: ${n.issueText}`);
+      if (n.changed) parts.push("changed since you last looked");
+      if (n.commentCount) parts.push(`${n.commentCount} open comment thread${n.commentCount === 1 ? "" : "s"}`);
       if (n.hasFilter) parts.push(n.filterName ? `filtered: ${n.filterName}` : "filtered");
       if (n.hasErrorHandler) parts.push("has error handler");
       if (n.badge) {
@@ -1418,6 +1424,14 @@ export default function ScenarioCanvas({
                           }}
                         />
                       )}
+                      {n.changed && (
+                        <div
+                          aria-hidden="true"
+                          title="Changed since you last looked"
+                          className="pointer-events-none absolute -inset-[5px] rounded-[19px] border-2"
+                          style={{ borderColor: "var(--warn)", boxShadow: "0 0 10px color-mix(in srgb, var(--warn) 60%, transparent)" }}
+                        />
+                      )}
                       {n.issueSeverity && (
                         <div
                           aria-hidden="true"
@@ -1466,6 +1480,15 @@ export default function ScenarioCanvas({
                         >
                           {n.label}
                         </div>
+                        {n.commentCount ? (
+                          <span
+                            aria-hidden="true"
+                            title={`${n.commentCount} open comment thread${n.commentCount === 1 ? "" : "s"}`}
+                            className="shrink-0 rounded-full border border-line bg-pill px-1.5 py-[2px] text-[9.5px] font-semibold leading-none text-t2"
+                          >
+                            💬 {n.commentCount}
+                          </span>
+                        ) : null}
                       </div>
                       <div
                         className="max-w-[200px] truncate whitespace-nowrap text-[10.5px] text-t2"

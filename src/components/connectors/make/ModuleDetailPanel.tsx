@@ -12,6 +12,7 @@ import {
 } from "@/components/shared/DetailPanelKit";
 import { AssetsSection } from "@/components/shared/AssetsSection";
 import { IssuesSection } from "@/components/shared/IssuesSection";
+import { CommentsSection } from "@/components/shared/CommentsSection";
 
 export default function ModuleDetailPanel({
   data,
@@ -20,6 +21,7 @@ export default function ModuleDetailPanel({
   onClose,
   onFindUses,
   issues,
+  commentTarget,
 }: DetailPanelProps) {
   const mod = data as ModuleDetail | null;
   if (!loading && !error && !mod) return null;
@@ -52,6 +54,7 @@ export default function ModuleDetailPanel({
 
           <IssuesSection issues={issues} onFindUses={onFindUses} />
           <AssetsSection assets={mod.assets} onFindUses={onFindUses} />
+          <CommentsSection targetKey={commentTarget} />
 
           <Section title="Module identity">
             <div className="flex flex-col">

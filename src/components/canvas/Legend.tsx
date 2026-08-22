@@ -47,6 +47,16 @@ const ITEMS: Item[] = [
     hint: "Node-level view: one box per workflow, ordered by who calls whom",
   },
   {
+    swatch: <span className="rounded-full border border-line bg-pill px-1.5 py-[1px] text-[8px] text-t2">💬 2</span>,
+    label: "Open comment threads",
+    hint: "Click the step → Comments in its panel",
+  },
+  {
+    swatch: <span className="size-3 rounded-[5px] border-2" style={{ borderColor: "var(--warn)", boxShadow: "0 0 6px var(--warn)" }} />,
+    label: "Changed since you last looked",
+    hint: "Rippit snapshot diff at sync — open Changes for details",
+  },
+  {
     swatch: <span className="size-2.5 rounded-full border-2 border-plane" style={{ background: "var(--warn)" }} />,
     label: "Filter on step",
   },

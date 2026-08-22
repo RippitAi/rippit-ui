@@ -11,6 +11,7 @@ import {
 } from "@/components/shared/DetailPanelKit";
 import { AssetsSection } from "@/components/shared/AssetsSection";
 import { IssuesSection } from "@/components/shared/IssuesSection";
+import { CommentsSection } from "@/components/shared/CommentsSection";
 import type { AssetRef } from "@/app/lib/api";
 
 /* GHL steps: {id, name, type, attributes, next, parentKey, order}
@@ -24,6 +25,7 @@ export default function StepDetailPanel({
   onClose,
   onFindUses,
   issues,
+  commentTarget,
 }: DetailPanelProps) {
   const step = data as GhlStep | null;
   if (!loading && !error && !step) return null;
@@ -69,6 +71,7 @@ export default function StepDetailPanel({
 
           <IssuesSection issues={issues} onFindUses={onFindUses} />
           <AssetsSection assets={assets} onFindUses={onFindUses} />
+          <CommentsSection targetKey={commentTarget} />
 
           <Section title="Step identity">
             <div className="flex flex-col">

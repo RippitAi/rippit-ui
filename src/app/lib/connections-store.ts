@@ -14,6 +14,8 @@ export interface Connection {
   label: string | null;
   status: "active" | "needs_reauth" | "error";
   lastSyncedAt: string | null;
+  /** "extension" | "oauth" | "api_token" — how this connection authenticates. */
+  authType?: string;
 }
 
 function fromBackend(c: BackendConnectionRow): Connection {
@@ -24,6 +26,7 @@ function fromBackend(c: BackendConnectionRow): Connection {
     label: c.label,
     status: (c.status as Connection["status"]) || "active",
     lastSyncedAt: c.last_synced_at,
+    authType: c.auth_type,
   };
 }
 

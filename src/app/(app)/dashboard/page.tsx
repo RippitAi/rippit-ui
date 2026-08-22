@@ -36,6 +36,11 @@ import { TagChip } from "@/components/tags/TagChip";
 import { TagFilter, matchesTags } from "@/components/tags/TagFilter";
 import type { Tag, LastRun } from "@/app/lib/api";
 import { LastRunChip } from "@/components/shared/RunsPanel";
+import { SaveViewButton } from "@/components/shared/SaveViewButton";
+import { fetchMembers, fetchViews } from "@/app/lib/api";
+import { useAuth } from "@/components/app/AuthProvider";
+import { useWorkspace } from "@/components/app/WorkspaceProvider";
+import { ChevronDown } from "lucide-react";
 import { workflowHref } from "@/lib/portals";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -160,7 +165,7 @@ function AppPuck({ app, size = 34 }: { app: string; size?: number }) {
   );
 }
 
-function WorkflowRow({ workflow, tags, lastRun }: { workflow: WorkflowIndexEntry; tags?: Tag[]; lastRun?: LastRun }) {
+function WorkflowRow({ workflow, tags, lastRun, changed }: { workflow: WorkflowIndexEntry; tags?: Tag[]; lastRun?: LastRun; changed?: number }) {
   const st = STATUS_META[toneOf(workflow)];
   const connector = getConnector(workflow.provider);
   return (
@@ -200,6 +205,15 @@ function WorkflowRow({ workflow, tags, lastRun }: { workflow: WorkflowIndexEntry
         </div>
       </div>
       <div className="flex flex-none items-center gap-2.5">
+        {changed ? (
+          <span
+            className="rounded-full border px-2 py-[2px] text-[9.5px] font-semibold"
+            style={{ color: "var(--warn-text)", borderColor: "color-mix(in srgb, var(--warn) 40%, transparent)", background: "color-mix(in srgb, var(--warn) 10%, transparent)" }}
+            title="Changes since you last looked"
+          >
+            {changed} change{changed === 1 ? "" : "s"}
+          </span>
+        ) : null}
         {lastRun && (lastRun.status === "error" || lastRun.status === "incomplete") && (
           <LastRunChip status={lastRun.status} at={lastRun.at} />
         )}
@@ -242,6 +256,60 @@ export default function DashboardPage() {
     const t = searchParams.get("tag");
     return t ? [t] : [];
   });
+  const [scope, setScope] = useState<"all" | "mine" | "watched">("all");
+  const { user } = useAuth();
+  const { current: workspace } = useWorkspace();
+  // Library grouping — look at the estate the way you think about it.
+  type GroupBy = "platform" | "folder" | "tag" | "owner" | "status" | "changed";
+  const [groupBy, setGroupBy] = useState<GroupBy>("platform");
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [memberNames, setMemberNames] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    if (!workspace) return;
+    let live = true;
+    fetchMembers(workspace.id)
+      .then((d) => live && setMemberNames(new Map(d.members.map((m) => [m.user_id, m.display_name || m.email || m.user_id]))))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [workspace]);
+  const viewId = searchParams.get("view");
+  // Saved view → apply its filters once.
+  useEffect(() => {
+    if (!viewId) return;
+    let live = true;
+    fetchViews()
+      .then((d) => {
+        const v = d.views.find((x) => x.id === viewId && x.kind === "dashboard");
+        if (!v || !live) return;
+        const f = v.filters as { tags?: string[]; status?: Tone | "all"; scope?: "all" | "mine" | "watched"; query?: string; groupBy?: GroupBy };
+        if (f.groupBy) setGroupBy(f.groupBy);
+        if (f.tags) setTagFilter(f.tags);
+        if (f.status) setStatusFilter(f.status);
+        if (f.scope) setScope(f.scope);
+        if (typeof f.query === "string") setQuery(f.query);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [viewId]);
+  const ownerByKey = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const w of linkMap?.workflows ?? []) if (w.ownerUserId) m.set(`${w.source}:${w.refId}`, w.ownerUserId);
+    return m;
+  }, [linkMap]);
+  const watchedKeys = useMemo(() => new Set((linkMap?.workflows ?? []).filter((w) => w.watching).map((w) => `${w.source}:${w.refId}`)), [linkMap]);
+  const changedWorkflows = useMemo(
+    () => (linkMap?.workflows ?? []).filter((w) => (w.changedSince?.count ?? 0) > 0).length,
+    [linkMap]
+  );
+  const changedByKey = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const w of linkMap?.workflows ?? []) if (w.changedSince?.count) m.set(`${w.source}:${w.refId}`, w.changedSince.count);
+    return m;
+  }, [linkMap]);
   const lastRunByKey = useMemo(() => {
     const m = new Map<string, LastRun>();
     for (const w of linkMap?.workflows ?? []) if (w.lastRun) m.set(`${w.source}:${w.refId}`, w.lastRun);
@@ -275,6 +343,8 @@ export default function DashboardPage() {
     return all.filter((w) => {
       if (statusFilter !== "all" && toneOf(w) !== statusFilter) return false;
       if (!matchesTags(tagsByKey.get(`${w.provider}:${w.refId}`), tagFilter)) return false;
+      if (scope === "mine" && ownerByKey.get(`${w.provider}:${w.refId}`) !== user?.id) return false;
+      if (scope === "watched" && !watchedKeys.has(`${w.provider}:${w.refId}`)) return false;
       if (!q) return true;
       return (
         w.name.toLowerCase().includes(q) ||
@@ -282,7 +352,43 @@ export default function DashboardPage() {
         w.provider.includes(q)
       );
     });
-  }, [all, query, statusFilter, tagFilter, tagsByKey]);
+  }, [all, query, statusFilter, tagFilter, tagsByKey, scope, ownerByKey, watchedKeys, user]);
+
+  const groups = useMemo(() => {
+    const keyOf = (w: WorkflowIndexEntry): { id: string; label: string; sub?: string }[] => {
+      const key = `${w.provider}:${w.refId}`;
+      switch (groupBy) {
+        case "platform":
+          return [{ id: `p:${w.provider}`, label: getConnector(w.provider).label }];
+        case "folder":
+          return [{ id: `f:${w.provider}:${w.groupPath.join("/")}`, label: w.groupPath.length ? w.groupPath.join(" / ") : "No folder", sub: getConnector(w.provider).shortLabel }];
+        case "tag": {
+          const ts = tagsByKey.get(key) ?? [];
+          return ts.length ? ts.map((t) => ({ id: `t:${t.id}`, label: t.name })) : [{ id: "t:none", label: "Untagged" }];
+        }
+        case "owner": {
+          const o = ownerByKey.get(key);
+          return [{ id: `o:${o ?? "none"}`, label: o ? memberNames.get(o) ?? "Owner" : "No owner" }];
+        }
+        case "status":
+          return [{ id: `s:${toneOf(w)}`, label: toneOf(w) }];
+        case "changed": {
+          const n = changedByKey.get(key) ?? 0;
+          return [{ id: n ? "c:changed" : "c:same", label: n ? "Changed since you last looked" : "Unchanged" }];
+        }
+      }
+    };
+    const map = new Map<string, { id: string; label: string; sub?: string; items: WorkflowIndexEntry[] }>();
+    for (const w of filtered) {
+      for (const g of keyOf(w)) {
+        const entry = map.get(g.id) ?? { ...g, items: [] };
+        entry.items.push(w);
+        map.set(g.id, entry);
+      }
+    }
+    const order = (g: { id: string; label: string }) => (g.id.endsWith(":none") || g.id === "t:none" || g.id === "c:same" ? 1 : 0);
+    return [...map.values()].sort((a, b) => order(a) - order(b) || b.items.length - a.items.length || a.label.localeCompare(b.label));
+  }, [filtered, groupBy, tagsByKey, ownerByKey, memberNames, changedByKey]);
 
   if (loading) {
     return (
@@ -415,8 +521,32 @@ export default function DashboardPage() {
                 <span className="rounded-[5px] border border-line bg-hover px-1.5 py-0.5 font-mono text-[9.5px] text-t2">
                   {filtered.length}
                 </span>
+                <Segmented
+                  label="Group by"
+                  value={groupBy}
+                  options={[
+                    { value: "platform", label: "Platform" },
+                    { value: "folder", label: "Folder" },
+                    { value: "tag", label: "Tag" },
+                    { value: "owner", label: "Owner" },
+                    { value: "status", label: "Status" },
+                    { value: "changed", label: "Changed" },
+                  ]}
+                  onChange={setGroupBy}
+                />
                 <div className="flex-1" />
                 <TagFilter tags={allTags} selected={tagFilter} onChange={setTagFilter} />
+                <Segmented
+                  label="Scope"
+                  value={scope}
+                  options={[
+                    { value: "all", label: "All" },
+                    { value: "mine", label: "Mine" },
+                    { value: "watched", label: "Watched" },
+                  ]}
+                  onChange={setScope}
+                />
+                <SaveViewButton kind="dashboard" filters={{ tags: tagFilter, status: statusFilter, scope, query, groupBy }} />
                 <Segmented
                   label="Filter workflows by status"
                   value={statusFilter}
@@ -440,7 +570,7 @@ export default function DashboardPage() {
                   />
                 </div>
               </div>
-              <div className="divide-y divide-line2">
+              <div className="max-h-[70vh] overflow-y-auto">
                 <AnimatePresence initial={false} mode="popLayout">
                   {filtered.length === 0 ? (
                     <motion.div
@@ -468,22 +598,50 @@ export default function DashboardPage() {
                       )}
                     </motion.div>
                   ) : (
-                    filtered.map((w) => (
-                      <motion.div
-                        key={`${w.provider}:${w.refId}`}
-                        layout
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.98 }}
-                        transition={{ duration: 0.25, ease: EASE }}
-                      >
-                        <WorkflowRow
-                          workflow={w}
-                          tags={tagsByKey.get(`${w.provider}:${w.refId}`)}
-                          lastRun={lastRunByKey.get(`${w.provider}:${w.refId}`)}
-                        />
-                      </motion.div>
-                    ))
+                    groups.map((g) => {
+                      const isCollapsed = collapsed.has(g.id);
+                      return (
+                        <motion.section
+                          key={g.id}
+                          layout
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.25, ease: EASE }}
+                          aria-label={g.label}
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setCollapsed((c) => {
+                                const n = new Set(c);
+                                if (n.has(g.id)) n.delete(g.id);
+                                else n.add(g.id);
+                                return n;
+                              })
+                            }
+                            aria-expanded={!isCollapsed}
+                            className="sticky top-0 z-[1] flex w-full items-center gap-2 border-b border-line2 bg-panel/95 px-4 py-1.5 text-left backdrop-blur-[6px]"
+                          >
+                            <ChevronDown aria-hidden="true" className={`size-3 text-t3 transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
+                            <span className="text-[11px] font-semibold text-t1">{g.label}</span>
+                            {g.sub && <span className="text-[10px] text-t3">{g.sub}</span>}
+                            <span className="rounded-[5px] border border-line bg-hover px-1.5 py-0.5 font-mono text-[9.5px] text-t2">{g.items.length}</span>
+                          </button>
+                          {!isCollapsed &&
+                            g.items.map((w) => (
+                              <div key={`${g.id}|${w.provider}:${w.refId}`} className="border-b border-line2 last:border-b-0">
+                                <WorkflowRow
+                                  workflow={w}
+                                  tags={tagsByKey.get(`${w.provider}:${w.refId}`)}
+                                  lastRun={lastRunByKey.get(`${w.provider}:${w.refId}`)}
+                                  changed={changedByKey.get(`${w.provider}:${w.refId}`)}
+                                />
+                              </div>
+                            ))}
+                        </motion.section>
+                      );
+                    })
                   )}
                 </AnimatePresence>
               </div>
@@ -499,6 +657,9 @@ export default function DashboardPage() {
                   </h2>
                   <span className="tabular font-mono text-[11px] font-medium text-t2">
                     {health}% active
+                    {changedWorkflows > 0 && (
+                      <span className="text-warn-text"> · {changedWorkflows} changed since you last looked</span>
+                    )}
                   </span>
                 </div>
                 <div

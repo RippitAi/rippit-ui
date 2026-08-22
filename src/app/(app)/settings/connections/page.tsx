@@ -1,12 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useWorkspace } from "@/components/app/WorkspaceProvider";
+import {
+  createWorkspace,
+  fetchMembers,
+  inviteMember,
+  removeMember,
+  renameWorkspace,
+  revokeInvite,
+  updateMe,
+  WorkspaceInvite,
+  WorkspaceMember,
+} from "@/app/lib/api";
 import { Check, Copy, KeyRound, LogOut, RefreshCw, Trash2 } from "lucide-react";
 import { getConnector as getConnectorDescriptor } from "@/lib/connectors";
 import type { ProviderId } from "@/lib/connectors/types";
 import { mintPairingCode, PairingCode } from "@/app/lib/api";
 import { useAuth } from "@/components/app/AuthProvider";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useConnections } from "@/components/app/ConnectionsProvider";
 import {
@@ -51,6 +65,8 @@ function ConnectionRow({
         </p>
         <p className="truncate font-mono text-[10px] text-t3">
           {connector.label} · {connection.externalId}
+          {connection.authType === "oauth" && " · via OAuth (names & status only)"}
+          {connection.authType === "extension" && " · via extension"}
           {connection.lastSyncedAt &&
             ` · synced ${new Date(connection.lastSyncedAt).toLocaleString()}`}
         </p>
@@ -208,14 +224,214 @@ function PairingCard() {
   );
 }
 
+/* Workspace: name, members, invites. Owners manage; members see the list. */
+function WorkspaceCard() {
+  const { current, workspaces, switchTo, refresh } = useWorkspace();
+  const { user } = useAuth();
+  const [data, setData] = useState<{ members: WorkspaceMember[]; invites: WorkspaceInvite[] } | null>(null);
+  const [email, setEmail] = useState("");
+  const [newName, setNewName] = useState("");
+  const [error, setError] = useState("");
+  const [gen, setGen] = useState(0);
+  const isOwner = current?.role === "owner";
+
+  useEffect(() => {
+    if (!current) return;
+    let live = true;
+    fetchMembers(current.id)
+      .then((d) => live && setData(d))
+      .catch((e: Error) => live && setError(e.message));
+    return () => {
+      live = false;
+    };
+  }, [current, gen]);
+
+  if (!current) return null;
+  const reload = () => setGen((g) => g + 1);
+
+  return (
+    <div className="flex flex-col gap-3 rounded-card border border-line bg-panel px-4 py-3.5">
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-[12.5px] font-semibold">{current.name}</h3>
+          <p className="truncate font-mono text-[10.5px] text-t3">
+            you are {current.role} · {data?.members.length ?? "…"} member{data && data.members.length === 1 ? "" : "s"}
+            {workspaces.length > 1 ? ` · ${workspaces.length} workspaces` : ""}
+          </p>
+        </div>
+        {isOwner && (
+          <form
+            className="flex items-center gap-1.5"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const name = newName.trim();
+              if (!name) return;
+              try {
+                await renameWorkspace(current.id, name);
+                setNewName("");
+                refresh();
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "Rename failed");
+              }
+            }}
+          >
+            <Input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Rename workspace…"
+              aria-label="New workspace name"
+              className="h-8 w-[180px] rounded-control border-line-strong bg-hover text-[12px]"
+            />
+            <Button type="submit" variant="outline" disabled={!newName.trim()} className="h-8 rounded-control border-line-strong bg-transparent px-2.5 text-[11.5px] text-t2 hover:text-t1">
+              Rename
+            </Button>
+          </form>
+        )}
+      </div>
+
+      <ul className="flex flex-col divide-y divide-line2 rounded-control border border-line2">
+        {(data?.members ?? []).map((m) => (
+          <li key={m.user_id} className="flex items-center gap-3 px-3 py-2">
+            <span className="min-w-0 flex-1 truncate text-[12px]">
+              {m.display_name || m.email || m.user_id}
+              {m.user_id === user?.id && <span className="text-t3"> (you)</span>}
+            </span>
+            <span className="rounded-full border border-line px-2 py-[1px] text-[9.5px] font-semibold text-t3">{m.role}</span>
+            {isOwner && m.user_id !== user?.id && (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await removeMember(current.id, m.user_id);
+                    reload();
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Remove failed");
+                  }
+                }}
+                className="text-[11px] text-t3 hover:text-err-text"
+                aria-label={`Remove ${m.display_name || m.email || "member"}`}
+              >
+                remove
+              </button>
+            )}
+          </li>
+        ))}
+        {(data?.invites ?? []).map((inv) => (
+          <li key={inv.id} className="flex items-center gap-3 px-3 py-2 text-t3">
+            <span className="min-w-0 flex-1 truncate text-[12px]">{inv.email}</span>
+            <span className="rounded-full border border-dashed border-line px-2 py-[1px] text-[9.5px] font-semibold">invited · {inv.role}</span>
+            {isOwner && (
+              <button
+                type="button"
+                onClick={async () => {
+                  await revokeInvite(current.id, inv.id).catch(() => {});
+                  reload();
+                }}
+                className="text-[11px] hover:text-err-text"
+                aria-label={`Revoke invite for ${inv.email}`}
+              >
+                revoke
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      {isOwner && (
+        <form
+          className="flex items-center gap-1.5"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const value = email.trim();
+            if (!value) return;
+            setError("");
+            try {
+              await inviteMember(current.id, value);
+              setEmail("");
+              reload();
+            } catch (err) {
+              setError(err instanceof Error ? err.message : "Invite failed");
+            }
+          }}
+        >
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Invite by email…"
+            aria-label="Invite member by email"
+            className="h-8 rounded-control border-line-strong bg-hover text-[12px]"
+          />
+          <Button type="submit" disabled={!email.trim()} className="h-8 rounded-control px-3 text-[11.5px] font-semibold">
+            Invite
+          </Button>
+        </form>
+      )}
+      <p className="text-[10.5px] text-t3">
+        Invited people join automatically the first time they sign in with that email.
+        Everyone in a workspace sees the same connections, tags, comments and change log.
+      </p>
+      <div className="flex items-center gap-2 border-t border-line2 pt-2">
+        <form
+          className="flex items-center gap-1.5"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const name = (e.currentTarget.elements.namedItem("ws") as HTMLInputElement).value.trim();
+            if (!name) return;
+            try {
+              const w = await createWorkspace(name);
+              switchTo(w.id);
+            } catch (err) {
+              setError(err instanceof Error ? err.message : "Create failed");
+            }
+          }}
+        >
+          <Input name="ws" placeholder="New workspace name…" aria-label="New workspace name" className="h-8 w-[200px] rounded-control border-line-strong bg-hover text-[12px]" />
+          <Button type="submit" variant="outline" className="h-8 rounded-control border-line-strong bg-transparent px-2.5 text-[11.5px] text-t2 hover:text-t1">
+            Create workspace
+          </Button>
+        </form>
+      </div>
+      {error && (
+        <p role="alert" className="text-[11px] text-err-text">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function ProfileCard() {
   const { user, signOut } = useAuth();
   const [busy, setBusy] = useState(false);
+  const [name, setName] = useState("");
+  const [saved, setSaved] = useState(false);
   return (
     <div className="flex items-center gap-3 rounded-card border border-line bg-panel px-4 py-3.5">
       <div className="min-w-0 flex-1">
         <h3 className="text-[12.5px] font-semibold">Signed in</h3>
         <p className="truncate font-mono text-[11px] text-t3">{user?.email}</p>
+        <form
+          className="mt-2 flex items-center gap-1.5"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!name.trim()) return;
+            await updateMe(name.trim()).catch(() => {});
+            setSaved(true);
+            setTimeout(() => setSaved(false), 1500);
+          }}
+        >
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Display name (shown to teammates)"
+            aria-label="Display name"
+            className="h-8 w-[240px] rounded-control border-line-strong bg-hover text-[12px]"
+          />
+          <Button type="submit" variant="outline" disabled={!name.trim()} className="h-8 rounded-control border-line-strong bg-transparent px-2.5 text-[11.5px] text-t2 hover:text-t1">
+            {saved ? "Saved" : "Save"}
+          </Button>
+        </form>
       </div>
       <Button
         onClick={async () => {
@@ -237,10 +453,25 @@ export default function ConnectionsPage() {
   const { connections, syncing, sync, disconnect, add, refresh } =
     useConnections();
   const [watching, setWatching] = useState<ProviderId | null>(null);
+  const searchParams = useSearchParams();
+  const connectedParam = searchParams.get("connected");
+  const oauthError = searchParams.get("oauth_error");
+  const [oauthNotice, setOauthNotice] = useState<{ tone: "ok" | "warn"; text: string } | null>(null);
 
   useEffect(() => {
     document.title = "Settings — Rippit";
   }, []);
+
+  // Returning from an OAuth redirect: show the outcome and reload connections.
+  useEffect(() => {
+    if (connectedParam) {
+      setOauthNotice({ tone: "ok", text: `Connected ${connectedParam.toUpperCase()} via OAuth — syncing…` });
+      refresh();
+    } else if (oauthError) {
+      setOauthNotice({ tone: "warn", text: `OAuth connection failed: ${oauthError}` });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connectedParam, oauthError]);
 
   // Extension flows connect out-of-band; refresh periodically so a new
   // location appears without a manual reload — faster while an
@@ -265,6 +496,23 @@ export default function ConnectionsPage() {
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4 lg:p-5">
         <div className="mx-auto flex max-w-2xl flex-col gap-6">
+          {oauthNotice && (
+            <div
+              role="status"
+              className="flex items-center justify-between gap-3 rounded-card border px-4 py-2.5 text-[12px]"
+              style={{
+                color: oauthNotice.tone === "ok" ? "var(--ok-text)" : "var(--warn-text)",
+                borderColor: `color-mix(in srgb, var(${oauthNotice.tone === "ok" ? "--ok" : "--warn"}) 35%, transparent)`,
+                background: `color-mix(in srgb, var(${oauthNotice.tone === "ok" ? "--ok" : "--warn"}) 8%, transparent)`,
+              }}
+            >
+              <span>{oauthNotice.text}</span>
+              <button type="button" onClick={() => setOauthNotice(null)} className="text-t3 hover:text-t1" aria-label="Dismiss">
+                ×
+              </button>
+            </div>
+          )}
+
           <section aria-labelledby="connected-heading">
             <h2
               id="connected-heading"
@@ -315,6 +563,16 @@ export default function ConnectionsPage() {
               Chrome extension
             </h2>
             <PairingCard />
+          </section>
+
+          <section aria-labelledby="workspace-heading">
+            <h2
+              id="workspace-heading"
+              className="mb-2 text-[11px] font-semibold text-t3"
+            >
+              Workspace
+            </h2>
+            <WorkspaceCard />
           </section>
 
           <section aria-labelledby="profile-heading">

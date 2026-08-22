@@ -1,6 +1,7 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
+import { fetchConnectorCatalog, startOAuth } from "@/app/lib/api";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Check, ChevronDown, Puzzle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -35,15 +36,56 @@ export function ConnectorGlyph({
 }
 
 /** Per-connector connect flow: a credentials form or extension hand-off. */
+/** "Connect with {platform}" — official OAuth path (server-configured). */
+function OAuthButton({ connector }: { connector: ConnectorDescriptor }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Button
+        type="button"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setError("");
+          try {
+            const { url } = await startOAuth(connector.id);
+            window.location.assign(url);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : "Could not start OAuth");
+            setBusy(false);
+          }
+        }}
+        className="h-auto w-full cursor-pointer rounded-control py-2.5 text-[12.5px] font-semibold hover:opacity-85 disabled:opacity-50"
+      >
+        {busy ? "Redirecting…" : `Connect with ${connector.label} (official OAuth)`}
+        {!busy && <ArrowRight aria-hidden="true" className="size-3.5" />}
+      </Button>
+      <p className="text-[10.5px] text-t3">
+        Installs Rippit on one sub-account. OAuth returns workflow names and
+        status only — keep the extension connected for step-level detail.
+      </p>
+      {error && (
+        <p role="alert" className="text-[11px] text-err-text">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function ConnectFlow({
   connector,
   onSubmit,
   waiting,
+  oauthAvailable,
 }: {
   connector: ConnectorDescriptor;
   onSubmit: (values: Record<string, string>) => Promise<void>;
   /** Extension flows: parent is polling for the connection to appear. */
   waiting?: boolean;
+  /** Server has an OAuth app configured for this provider. */
+  oauthAvailable?: boolean;
 }) {
   const formId = useId();
   const [values, setValues] = useState<Record<string, string>>({});
@@ -67,14 +109,21 @@ export function ConnectFlow({
             Waiting for the extension to connect…
           </p>
         )}
+        {oauthAvailable && (
+          <div className="mt-1 border-t border-line2 pt-3">
+            <OAuthButton connector={connector} />
+          </div>
+        )}
       </div>
     );
   }
 
   if (connector.connect.type === "oauth") {
-    return (
+    return oauthAvailable ? (
+      <OAuthButton connector={connector} />
+    ) : (
       <p className="text-[12px] italic text-t3">
-        OAuth connection coming soon.
+        OAuth is not configured on this server yet.
       </p>
     );
   }
@@ -174,6 +223,17 @@ export function ConnectorCatalog({
     setExpandedState(p);
     onExpandChange?.(p);
   };
+  // Server catalog: which providers have an OAuth app configured.
+  const [oauthProviders, setOauthProviders] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    let live = true;
+    fetchConnectorCatalog()
+      .then((rows) => live && setOauthProviders(new Set(rows.filter((r) => r.oauthAvailable).map((r) => r.provider))))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
 
   return (
     <div className="flex flex-col gap-3">
@@ -239,6 +299,7 @@ export function ConnectorCatalog({
                       connector={connector}
                       onSubmit={(values) => onAdd(connector.id, values)}
                       waiting={pollingProvider === connector.id}
+                      oauthAvailable={oauthProviders.has(connector.id)}
                     />
                   </div>
                 </motion.div>

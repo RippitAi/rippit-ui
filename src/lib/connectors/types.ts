@@ -57,6 +57,8 @@ export interface DetailPanelProps {
   onFindUses?: (ref: { kind: string; value: string; label?: string | null }) => void;
   /** Structural issues on the selected node (from the workflow summary). */
   issues?: import("@/app/lib/api").Issue[];
+  /** Comment target key for the selected node ("node:{provider}:{wf}:{node}"). */
+  commentTarget?: string;
 }
 
 /** Minimal connection info descriptors need (avoids importing the store). */

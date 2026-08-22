@@ -12,6 +12,10 @@ import {
   Settings,
   SunMoon,
   Workflow,
+  Bell,
+  Bookmark,
+  ChevronRight,
+  Clock3,
 } from "lucide-react";
 import {
   Sidebar,
@@ -32,9 +36,13 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "./AuthProvider";
 import { useConnections, useWorkflowIndex } from "./ConnectionsProvider";
+import { useWorkspace } from "./WorkspaceProvider";
+import { useEffect } from "react";
+import { fetchNotifications, fetchViews, SavedView } from "@/app/lib/api";
 import { ConnectorSection } from "./ConnectorSection";
 import { UserAvatar } from "./UserAvatar";
 import { usePalette } from "@/components/palette/palette-context";
@@ -53,6 +61,7 @@ export function AppSidebar() {
   const { user, signOut } = useAuth();
   const { resolvedTheme, setTheme } = useTheme();
   const [filter, setFilter] = useState("");
+  const [browseOpen, setBrowseOpen] = useState(false);
   const index = useWorkflowIndex();
 
   const meta = (user?.user_metadata ?? {}) as Record<string, unknown>;
@@ -104,7 +113,7 @@ export function AppSidebar() {
                 type="search"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                placeholder="Search workflows…"
+                placeholder="Find a workflow…"
                 aria-label="Filter workflows in the sidebar"
                 className="h-8 w-full rounded-control border border-line bg-hover pl-8 pr-11 text-[12px] text-t1 transition-colors placeholder:text-t3 hover:border-line-strong focus:border-line-strong"
               />
@@ -165,6 +174,15 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="Activity" className={ITEM} isActive={pathname === "/activity"}>
+                    <Link href="/activity">
+                      <Bell aria-hidden="true" className="!size-[15px]" />
+                      <span>Activity</span>
+                      <UnreadPill />
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
                   <SidebarMenuButton
                     asChild
                     tooltip="Monitor"
@@ -183,18 +201,37 @@ export function AppSidebar() {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
+          <SavedViewsGroup />
+          <RecentGroup />
 
-          {connections.map((conn) => (
-            <ConnectorSection
-              key={conn.id}
-              connection={conn}
-              groups={trees[conn.id] ?? []}
-              status={treeStatus[conn.id] ?? "loading"}
-              syncing={syncing === conn.id}
-              filter={filter}
-              onSync={() => sync(conn)}
-            />
-          ))}
+          {/* Browse by platform folders — collapsed by default: the dashboard
+              library (group by platform / folder / tag / owner / status /
+              changed) is the primary way to look at the estate. Typing in the
+              search box expands it and filters. */}
+          <SidebarGroup className="group-data-[collapsible=icon]:hidden">
+            <button
+              type="button"
+              onClick={() => setBrowseOpen((o) => !o)}
+              aria-expanded={browseOpen || !!filter}
+              className={`${GROUP_LABEL} flex w-full items-center gap-1.5 rounded-[6px] hover:text-t1`}
+            >
+              <ChevronRight aria-hidden="true" className={`size-3 transition-transform ${browseOpen || filter ? "rotate-90" : ""}`} />
+              Browse by platform
+              <span className="ml-auto font-mono text-[9px]">{index.length}</span>
+            </button>
+          </SidebarGroup>
+          {(browseOpen || !!filter) &&
+            connections.map((conn) => (
+              <ConnectorSection
+                key={conn.id}
+                connection={conn}
+                groups={trees[conn.id] ?? []}
+                status={treeStatus[conn.id] ?? "loading"}
+                syncing={syncing === conn.id}
+                filter={filter}
+                onSync={() => sync(conn)}
+              />
+            ))}
 
           {loading && (
             <SidebarGroup className="group-data-[collapsible=icon]:hidden">
@@ -250,6 +287,7 @@ export function AppSidebar() {
                 align="start"
                 className="w-[218px] border-line bg-pill"
               >
+                <WorkspaceSwitcherItems />
                 <DropdownMenuItem asChild className="gap-2 text-[12px]">
                   <Link href="/settings/connections">
                     <Settings aria-hidden="true" className="size-3.5" />
@@ -290,5 +328,126 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
+  );
+}
+
+/* Workspace switcher rows inside the account menu: current workspace with a
+   check, other memberships to switch to, and a link to manage members. */
+function WorkspaceSwitcherItems() {
+  const { current, workspaces, switchTo } = useWorkspace();
+  if (!current) return null;
+  return (
+    <>
+      <DropdownMenuLabel className="px-2 pb-0.5 pt-1 text-[9.5px] font-semibold uppercase tracking-wide text-t3">
+        Workspace
+      </DropdownMenuLabel>
+      {workspaces.map((w) => (
+        <DropdownMenuItem
+          key={w.id}
+          className="gap-2 text-[12px]"
+          onClick={() => w.id !== current.id && switchTo(w.id)}
+          aria-current={w.id === current.id ? "true" : undefined}
+        >
+          <span
+            aria-hidden="true"
+            className={`size-[6px] rounded-full ${w.id === current.id ? "bg-ok" : "bg-off"}`}
+          />
+          <span className="truncate">{w.name}</span>
+          <span className="ml-auto text-[9.5px] text-t3">{w.role}</span>
+        </DropdownMenuItem>
+      ))}
+      <DropdownMenuSeparator className="bg-line2" />
+    </>
+  );
+}
+
+/* Unread notifications count (polls every 60 s). */
+function UnreadPill() {
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    let live = true;
+    const load = () => fetchNotifications(true).then((d) => live && setUnread(d.unread)).catch(() => {});
+    load();
+    const t = setInterval(load, 60000);
+    return () => {
+      live = false;
+      clearInterval(t);
+    };
+  }, []);
+  if (!unread) return null;
+  return (
+    <span className="ml-auto rounded-full border px-1.5 py-[1px] text-[9px] font-semibold" style={{ color: "var(--warn-text)", borderColor: "color-mix(in srgb, var(--warn) 40%, transparent)", background: "color-mix(in srgb, var(--warn) 10%, transparent)" }}>
+      {unread}
+      <span className="sr-only"> unread notifications</span>
+    </span>
+  );
+}
+
+/* Saved views shared in the workspace → dashboard / unified with ?view=. */
+export function SavedViewsGroup() {
+  const [views, setViews] = useState<SavedView[]>([]);
+  useEffect(() => {
+    let live = true;
+    fetchViews().then((d) => live && setViews(d.views)).catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (views.length === 0) return null;
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-wide text-t3">Views</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {views.map((v) => (
+            <SidebarMenuItem key={v.id}>
+              <SidebarMenuButton asChild tooltip={v.name} className={ITEM}>
+                <Link href={`/${v.kind === "unified" ? "unified" : "dashboard"}?view=${encodeURIComponent(v.id)}`}>
+                  <Bookmark aria-hidden="true" className="!size-[15px]" />
+                  <span className="truncate">{v.name}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+}
+
+/* Recently opened workflows (this browser), newest first. */
+function RecentGroup() {
+  const [recent, setRecent] = useState<{ provider: string; id: string; name: string; at: number }[]>([]);
+  useEffect(() => {
+    const load = () => {
+      try {
+        setRecent(JSON.parse(localStorage.getItem("rippit.recent") || "[]"));
+      } catch {
+        setRecent([]);
+      }
+    };
+    load();
+    window.addEventListener("rippit:recent", load);
+    return () => window.removeEventListener("rippit:recent", load);
+  }, []);
+  if (recent.length === 0) return null;
+  return (
+    <SidebarGroup className="group-data-[collapsible=icon]:hidden">
+      <SidebarGroupLabel className={GROUP_LABEL}>Recent</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {recent.slice(0, 6).map((r) => (
+            <SidebarMenuItem key={`${r.provider}:${r.id}`}>
+              <SidebarMenuButton asChild tooltip={r.name} className={ITEM}>
+                <Link href={`/w/${r.provider}/${r.id}`}>
+                  <Clock3 aria-hidden="true" className="!size-[13px] text-t3" />
+                  <span className="truncate">{r.name}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
   );
 }

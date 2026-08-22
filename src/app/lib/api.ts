@@ -24,12 +24,29 @@ export function setAuthFailureHandler(fn: (() => void) | null) {
   authFailureHandler = fn;
 }
 
+/* Active workspace (collaboration scope). Persisted so a reload keeps the
+   same workspace; the API resolves the user's default when unset. */
+const WORKSPACE_KEY = "rippit.workspace";
+
+export function getActiveWorkspaceId(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(WORKSPACE_KEY);
+}
+
+export function setActiveWorkspaceId(id: string | null) {
+  if (typeof window === "undefined") return;
+  if (id) window.localStorage.setItem(WORKSPACE_KEY, id);
+  else window.localStorage.removeItem(WORKSPACE_KEY);
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const {
     data: { session },
   } = await supabase.auth.getSession();
   const headers = new Headers(init?.headers);
   if (session) headers.set("Authorization", `Bearer ${session.access_token}`);
+  const workspaceId = getActiveWorkspaceId();
+  if (workspaceId) headers.set("X-Rippit-Workspace", workspaceId);
 
   const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
   if (!res.ok) {
@@ -136,7 +153,260 @@ export interface LastRun {
   executionId?: string;
 }
 
-/** Manual tag (per user). */
+/* ─── Change log ─────────────────────────────────────────────────────────── */
+
+export type ChangeKind =
+  | "node-added" | "node-removed" | "node-changed" | "node-reordered"
+  | "edge-added" | "edge-removed" | "ref-added" | "ref-removed"
+  | "renamed" | "status-changed";
+
+export interface WorkflowChange {
+  id: number;
+  provider: ProviderId | null;
+  connectionId: string;
+  workflowExternalId: string;
+  workflowName?: string | null;
+  version: number;
+  kind: ChangeKind;
+  nodeId: string | null;
+  summary: string;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  authorHint: { name?: string | null; at?: string | null; source?: string } | null;
+  detectedAt: string;
+  unseen?: boolean;
+}
+
+export interface WorkflowChanges {
+  changes: WorkflowChange[];
+  versions: { version: number; syncedAt: string | null; authorHint: WorkflowChange["authorHint"]; acks?: { userId: string; name: string; ackedAt: string }[] }[];
+  lastSeenAt: string | null;
+  unseen: number;
+}
+
+export function fetchWorkflowChanges(provider: ProviderId, externalId: string, since?: string): Promise<WorkflowChanges> {
+  const qs = since ? `?since=${encodeURIComponent(since)}` : "";
+  return apiFetch<WorkflowChanges>(`/workflows/${provider}/${encodeURIComponent(externalId)}/changes${qs}`);
+}
+
+export function markWorkflowSeen(provider: ProviderId, externalId: string): Promise<{ seenAt: string }> {
+  return apiPost(`/workflows/${provider}/${encodeURIComponent(externalId)}/seen`);
+}
+
+export function fetchRecentChanges(days = 7): Promise<{ since: string; changes: WorkflowChange[] }> {
+  return apiFetch(`/changes?days=${days}`);
+}
+
+/* ─── Comments ───────────────────────────────────────────────────────────── */
+
+export type CommentTargetType = "workflow" | "node" | "issue" | "asset" | "change";
+
+export interface Comment {
+  id: string;
+  targetType: CommentTargetType;
+  targetKey: string;
+  parentId: string | null;
+  authorId: string;
+  authorName: string | null;
+  body: string;
+  mentions: string[];
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+  createdAt: string;
+  editedAt: string | null;
+}
+
+export interface CommentCounts {
+  [targetKey: string]: { total: number; open: number };
+}
+
+export function fetchComments(q: { target?: string; prefix?: string }): Promise<{ comments: Comment[]; counts: CommentCounts }> {
+  const qs = new URLSearchParams();
+  if (q.target) qs.set("target", q.target);
+  if (q.prefix) qs.set("prefix", q.prefix);
+  return apiFetch(`/comments?${qs.toString()}`);
+}
+
+export function createComment(input: { targetType: CommentTargetType; targetKey: string; body: string; parentId?: string | null }): Promise<Comment> {
+  return apiPost<Comment>(`/comments`, input);
+}
+
+export function patchComment(id: string, patch: { body?: string; resolved?: boolean }): Promise<Comment> {
+  return apiFetch<Comment>(`/comments/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+}
+
+export function deleteComment(id: string): Promise<{ deleted: string }> {
+  return apiFetch(`/comments/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+/* ─── Owners / notes / watch / ack ───────────────────────────────────────── */
+
+export interface WorkflowMeta {
+  ownerUserId: string | null;
+  ownerName: string | null;
+  notes: string | null;
+  updatedAt: string | null;
+  watching?: boolean;
+}
+
+export function fetchWorkflowMeta(provider: ProviderId, externalId: string): Promise<WorkflowMeta> {
+  return apiFetch(`/workflows/${provider}/${encodeURIComponent(externalId)}/meta`);
+}
+
+export function putWorkflowMeta(
+  provider: ProviderId,
+  externalId: string,
+  patch: { ownerUserId?: string | null; notes?: string; clearOwner?: boolean }
+): Promise<WorkflowMeta> {
+  return apiFetch(`/workflows/${provider}/${encodeURIComponent(externalId)}/meta`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+}
+
+export function setWatch(targetKey: string, watching: boolean): Promise<{ targetKey: string; watching: boolean }> {
+  return apiFetch(`/watches`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ targetKey, watching }) });
+}
+
+export function ackVersion(provider: ProviderId, externalId: string, version: number): Promise<{ version: number }> {
+  return apiPost(`/workflows/${provider}/${encodeURIComponent(externalId)}/versions/${version}/ack`);
+}
+
+/* ─── Activity / notifications ───────────────────────────────────────────── */
+
+export interface ActivityItem {
+  id: number;
+  kind: string;
+  targetKey: string | null;
+  payload: Record<string, unknown>;
+  actorId: string | null;
+  actorName: string | null;
+  createdAt: string;
+}
+
+export interface NotificationItem {
+  id: number;
+  readAt: string | null;
+  createdAt: string;
+  activity: ActivityItem;
+}
+
+export function fetchActivity(q: { since?: string; kinds?: string[]; target?: string; mine?: boolean; watched?: boolean; limit?: number } = {}): Promise<{ activity: ActivityItem[] }> {
+  const qs = new URLSearchParams();
+  if (q.since) qs.set("since", q.since);
+  if (q.kinds?.length) qs.set("kinds", q.kinds.join(","));
+  if (q.target) qs.set("target", q.target);
+  if (q.mine) qs.set("mine", "true");
+  if (q.watched) qs.set("watched", "true");
+  if (q.limit) qs.set("limit", String(q.limit));
+  return apiFetch(`/activity?${qs.toString()}`);
+}
+
+export function fetchNotifications(unread = false): Promise<{ unread: number; notifications: NotificationItem[] }> {
+  return apiFetch(`/notifications${unread ? "?unread=true" : ""}`);
+}
+
+export function markNotificationsRead(ids?: number[]): Promise<{ unread: number }> {
+  return apiPost(`/notifications/read`, ids ? { ids } : { all: true });
+}
+
+/* ─── Saved views ────────────────────────────────────────────────────────── */
+
+export interface SavedView {
+  id: string;
+  name: string;
+  kind: "dashboard" | "unified";
+  filters: Record<string, unknown>;
+  created_by: string | null;
+  shared: boolean;
+}
+
+export function fetchViews(): Promise<{ views: SavedView[] }> {
+  return apiFetch(`/views`);
+}
+
+export function createView(input: { name: string; kind: SavedView["kind"]; filters: Record<string, unknown>; shared?: boolean }): Promise<SavedView> {
+  return apiPost<SavedView>(`/views`, input);
+}
+
+export function deleteView(id: string): Promise<{ deleted: string }> {
+  return apiFetch(`/views/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+/* ─── Workspaces ─────────────────────────────────────────────────────────── */
+
+export interface Workspace {
+  id: string;
+  name: string;
+  slug: string;
+  role: "owner" | "member";
+  created_by?: string | null;
+  joined_at?: string;
+}
+
+export interface WorkspaceMember {
+  workspace_id: string;
+  user_id: string;
+  role: "owner" | "member";
+  display_name: string | null;
+  email: string | null;
+  joined_at: string;
+}
+
+export interface WorkspaceInvite {
+  id: string;
+  workspace_id: string;
+  email: string;
+  role: "owner" | "member";
+  invited_at?: string;
+}
+
+export function fetchWorkspaces(): Promise<{ current: string; workspaces: Workspace[] }> {
+  return apiFetch(`/workspaces`);
+}
+
+export function createWorkspace(name: string): Promise<Workspace> {
+  return apiPost<Workspace>(`/workspaces`, { name });
+}
+
+export function renameWorkspace(id: string, name: string): Promise<Workspace> {
+  return apiFetch(`/workspaces/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function fetchMembers(id: string): Promise<{ members: WorkspaceMember[]; invites: WorkspaceInvite[] }> {
+  return apiFetch(`/workspaces/${encodeURIComponent(id)}/members`);
+}
+
+export function inviteMember(id: string, email: string, role: "owner" | "member" = "member"): Promise<WorkspaceInvite> {
+  return apiPost<WorkspaceInvite>(`/workspaces/${encodeURIComponent(id)}/invites`, { email, role });
+}
+
+export function revokeInvite(id: string, inviteId: string): Promise<{ deleted: string }> {
+  return apiFetch(`/workspaces/${encodeURIComponent(id)}/invites/${encodeURIComponent(inviteId)}`, { method: "DELETE" });
+}
+
+export function removeMember(id: string, userId: string): Promise<{ removed: string }> {
+  return apiFetch(`/workspaces/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}`, { method: "DELETE" });
+}
+
+export function updateMe(displayName: string): Promise<WorkspaceMember> {
+  return apiFetch(`/me`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ displayName }),
+  });
+}
+
+/** Manual tag (per workspace). */
 export interface Tag {
   id: string;
   name: string;
@@ -198,6 +468,10 @@ export interface ModuleInfo {
   waitFor?: WaitFor | null;
   /** Structural issues on this node (summary responses). */
   issues?: Issue[];
+  /** Client-side: changed since the viewer last looked (amber ring). */
+  changed?: boolean;
+  /** Client-side: open comment threads on this node (count bubble). */
+  commentCount?: number;
   depth: number;
   x: number | null;
   y: number | null;
@@ -248,6 +522,9 @@ export interface ScenarioSummary {
   nativeUrl?: string | null;
   /** Structural issues for the whole workflow (node-level ones repeat on modules). */
   issues?: Issue[];
+  /** True when the connection path exposes no step content (GHL OAuth list-only). */
+  stepsUnavailable?: boolean;
+  reason?: string;
 }
 
 /** One asset / value a node references (from the reference index). */
@@ -416,6 +693,27 @@ export interface BackendConnectionRow {
   label: string | null;
   status: string;
   last_synced_at: string | null;
+  auth_type?: string;
+}
+
+/** GET /connectors — provider catalog incl. alternative connect paths. */
+export interface ConnectorCatalogEntry {
+  provider: ProviderId;
+  displayName: string;
+  connectMethod: string;
+  connectFields: { name: string; label: string; secret?: boolean }[];
+  oauthAvailable?: boolean;
+  authTypes?: string[];
+}
+
+export function fetchConnectorCatalog(): Promise<ConnectorCatalogEntry[]> {
+  return apiFetch<ConnectorCatalogEntry[]>(`/connectors`);
+}
+
+/** Begin an OAuth connect: the API returns the provider's authorize URL
+ * carrying a signed state; the browser is sent there. */
+export function startOAuth(provider: ProviderId): Promise<{ url: string; expiresIn: number }> {
+  return apiFetch(`/oauth/${provider}/start`);
 }
 
 export interface ConnectionWorkflowRow {
@@ -479,6 +777,10 @@ export interface WorkflowCard {
   issueCounts?: IssueCounts;
   tags?: Tag[];
   lastRun?: LastRun;
+  /** Changes newer than this viewer's last visit (last 30 days). */
+  changedSince?: { count: number; at: string | null };
+  ownerUserId?: string;
+  watching?: boolean;
 }
 
 /** An asset referenced by more than one workflow ("both touch Sheet X"). */

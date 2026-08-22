@@ -22,6 +22,8 @@ import { LastRunChip } from "@/components/shared/RunsPanel";
 import { useTags } from "@/components/tags/tags-context";
 import { TagChip } from "@/components/tags/TagChip";
 import { TagFilter, matchesTags } from "@/components/tags/TagFilter";
+import { SaveViewButton } from "@/components/shared/SaveViewButton";
+import { fetchViews } from "@/app/lib/api";
 import { useConnections } from "@/components/app/ConnectionsProvider";
 import { allConnectors, badgeTooltip, providerColor } from "@/lib/connectors";
 import ScenarioCanvas from "@/components/canvas/ScenarioCanvas";
@@ -65,6 +67,27 @@ export default function UnifiedPage() {
   const [showAssets, setShowAssets] = useState(false);
   const { tags: allTags } = useTags();
   const [tagFilter, setTagFilter] = useState<string[]>([]);
+  const [changedOnly, setChangedOnly] = useState(false);
+  const viewId = searchParams.get("view");
+  useEffect(() => {
+    if (!viewId) return;
+    let live = true;
+    fetchViews()
+      .then((d) => {
+        const v = d.views.find((x) => x.id === viewId && x.kind === "unified");
+        if (!v || !live) return;
+        const f = v.filters as { tags?: string[]; linkedOnly?: boolean; showAssets?: boolean; changedOnly?: boolean; mode?: "map" | "detail" | "list" };
+        if (f.tags) setTagFilter(f.tags);
+        if (typeof f.linkedOnly === "boolean") setLinkedChoice(f.linkedOnly);
+        if (typeof f.showAssets === "boolean") setShowAssets(f.showAssets);
+        if (typeof f.changedOnly === "boolean") setChangedOnly(f.changedOnly);
+        if (f.mode) setMode(f.mode);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [viewId]);
   // null = no explicit choice yet → default to linked-only unless there are no links
   const [linkedChoice, setLinkedChoice] = useState<boolean | null>(null);
   const linkedOnly = linkedChoice ?? (linkMap ? linkMap.stats.links > 0 : true);
@@ -116,7 +139,7 @@ export default function UnifiedPage() {
   /* Map data: one node per workflow, links as orange edges. */
   const mapData = useMemo(() => {
     if (!linkMap) return null;
-    let workflows = linkMap.workflows.filter((w) => matchesTags(w.tags, tagFilter));
+    let workflows = linkMap.workflows.filter((w) => matchesTags(w.tags, tagFilter) && (!changedOnly || (w.changedSince?.count ?? 0) > 0));
     if (linkedOnly)
       workflows = workflows.filter(
         (w) => linkInfo.has(cardId(w)) || (showAssets && assetLinkedIds.has(cardId(w)))
@@ -172,7 +195,7 @@ export default function UnifiedPage() {
       }
     }
     return { modules, connections };
-  }, [linkMap, linkedOnly, linkInfo, showAssets, assetLinkedIds, tagFilter]);
+  }, [linkMap, linkedOnly, linkInfo, showAssets, assetLinkedIds, tagFilter, changedOnly]);
 
   const handleMapClick = useCallback(
     (nodeId: NodeId) => {
@@ -206,6 +229,7 @@ export default function UnifiedPage() {
     const match = (w: WorkflowCard) =>
       (!q || w.name.toLowerCase().includes(q)) &&
       matchesTags(w.tags, tagFilter) &&
+      (!changedOnly || (w.changedSince?.count ?? 0) > 0) &&
       (!linkedOnly || linkInfo.has(cardId(w)));
     const sortByLinks = (a: WorkflowCard, b: WorkflowCard) => {
       const la = linkInfo.get(cardId(a));
@@ -221,7 +245,7 @@ export default function UnifiedPage() {
         .filter((w) => w.source === connector.id && match(w))
         .sort(sortByLinks),
     }));
-  }, [linkMap, query, linkedOnly, linkInfo, tagFilter]);
+  }, [linkMap, query, linkedOnly, linkInfo, tagFilter, changedOnly]);
 
   if (connectionsLoading && !linkMap) {
     return <LoadingState message="Loading workflow map…" />;
@@ -308,7 +332,21 @@ export default function UnifiedPage() {
         {allTags.length > 0 && mode !== "detail" && (
           <TagFilter tags={allTags} selected={tagFilter} onChange={setTagFilter} />
         )}
+        {mode !== "detail" && (linkMap.workflows.some((w) => (w.changedSince?.count ?? 0) > 0)) && (
+          <Segmented
+            label="Changed filter"
+            value={changedOnly ? "changed" : "any"}
+            options={[
+              { value: "any", label: "Any" },
+              { value: "changed", label: "Changed since you looked" },
+            ]}
+            onChange={(v) => setChangedOnly(v === "changed")}
+          />
+        )}
         <div className="flex-1" />
+        {mode !== "detail" && (
+          <SaveViewButton kind="unified" filters={{ tags: tagFilter, linkedOnly, showAssets, changedOnly, mode }} />
+        )}
         <div className="hidden items-center gap-3.5 md:flex">
           <StatChip label="Showing" value={String(showing)} />
           <div className="h-[22px] w-px bg-line" aria-hidden="true" />

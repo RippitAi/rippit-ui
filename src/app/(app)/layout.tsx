@@ -10,6 +10,7 @@ import {
 import { AppSidebar } from "@/components/app/AppSidebar";
 import { useAuth } from "@/components/app/AuthProvider";
 import { ConnectionsProvider } from "@/components/app/ConnectionsProvider";
+import { WorkspaceProvider, useWorkspace } from "@/components/app/WorkspaceProvider";
 import { PaletteProvider } from "@/components/palette/palette-context";
 import { TagsProvider } from "@/components/tags/tags-context";
 import { CommandPalette } from "@/components/palette/CommandPalette";
@@ -117,7 +118,46 @@ export default function AppShellLayout({
   if (!session || !user) return null;
 
   return (
-    <ConnectionsProvider key={user.id}>
+    <WorkspaceProvider key={user.id}>
+      <WorkspaceScopedShell
+        sidebarWidth={sidebarWidth}
+        onWidth={handleWidth}
+      >
+        {children}
+      </WorkspaceScopedShell>
+    </WorkspaceProvider>
+  );
+}
+
+/* Everything that holds workspace-scoped data remounts when the active
+   workspace changes (key on its id). */
+function WorkspaceScopedShell({
+  children,
+  sidebarWidth,
+  onWidth,
+}: {
+  children: React.ReactNode;
+  sidebarWidth: number;
+  onWidth: (w: number) => void;
+}) {
+  const { current, loading, error } = useWorkspace();
+  if (loading && !current) {
+    return (
+      <div className="h-svh bg-bg">
+        <LoadingState message="Loading workspace…" />
+      </div>
+    );
+  }
+  if (!current && error) {
+    return (
+      <div className="flex h-svh items-center justify-center bg-bg p-4 text-[12px] text-t2">
+        Could not load your workspace: {error}
+      </div>
+    );
+  }
+
+  return (
+    <ConnectionsProvider key={current?.id ?? "none"}>
       <TagsProvider>
       <PaletteProvider>
         <SidebarProvider
@@ -129,7 +169,7 @@ export default function AppShellLayout({
           }
         >
           <AppSidebar />
-          <SidebarResizeHandle width={sidebarWidth} onWidth={handleWidth} />
+          <SidebarResizeHandle width={sidebarWidth} onWidth={onWidth} />
           <SidebarInset
             id="main"
             tabIndex={-1}

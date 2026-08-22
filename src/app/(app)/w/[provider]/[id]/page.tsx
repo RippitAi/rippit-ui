@@ -15,15 +15,20 @@ import ScenarioCanvas from "@/components/canvas/ScenarioCanvas";
 import { ConnectedChips } from "@/components/canvas/ConnectedChips";
 import { Legend } from "@/components/canvas/Legend";
 import { usePaletteScope } from "@/components/palette/palette-context";
-import { StatChip } from "@/components/shared/StatChip";
 import { StatusPill } from "@/components/shared/StatusPill";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { ErrorCard } from "@/components/shared/ErrorCard";
 import { FindUsesDialog } from "@/components/shared/FindUsesDialog";
 import { IssueCountChips } from "@/components/shared/IssuesSection";
-import { TagPicker } from "@/components/tags/TagPicker";
 import type { Tag, ExecutionsResponse, Issue } from "@/app/lib/api";
-import { RunsPanel, LastRunChip } from "@/components/shared/RunsPanel";
+import { RunsPanel } from "@/components/shared/RunsPanel";
+import { ChangesPanel } from "@/components/shared/ChangesPanel";
+import { CommentsDrawer } from "@/components/shared/CommentsDrawer";
+import { NotesPanel, useWorkflowMeta } from "@/components/shared/OwnerNotes";
+import { InspectorRail, RAIL_ICONS, RailTool } from "@/components/canvas/InspectorRail";
+import { InfoPanel } from "@/components/shared/InfoPanel";
+import { fetchComments } from "@/app/lib/api";
+import { fetchWorkflowChanges, markWorkflowSeen, WorkflowChanges } from "@/app/lib/api";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -41,7 +46,9 @@ export default function WorkflowPage({
   const requestedNode = searchParams.get("node");
   const [findUses, setFindUses] = useState<{ kind: string; value: string; label?: string | null } | null>(null);
   const [wfTags, setWfTags] = useState<Tag[] | null>(null);
-  const [runsOpen, setRunsOpen] = useState(false);
+  const [openPanel, setOpenPanel] = useState<RailTool | null>(null);
+  const togglePanel = useCallback((t: RailTool) => setOpenPanel((cur) => (cur === t ? null : t)), []);
+  const runsOpen = openPanel === "runs";
   const [runs, setRuns] = useState<ExecutionsResponse | null>(null);
   const [data, setData] = useState<WorkflowData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,6 +59,79 @@ export default function WorkflowPage({
   const [nodeLoading, setNodeLoading] = useState(false);
   const [linkMap, setLinkMap] = useState<LinkMap | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const changesOpen = openPanel === "changes";
+  const [changes, setChanges] = useState<WorkflowChanges | null>(null);
+  const commentsOpen = openPanel === "comments";
+  const notesOpen = openPanel === "notes";
+  const { meta: wfMeta, setMeta: setWfMeta } = useWorkflowMeta(provider, id);
+
+  // Recent workflows for the sidebar (last 8, most recent first).
+  useEffect(() => {
+    if (!data) return;
+    try {
+      const key = "rippit.recent";
+      const prev: { provider: string; id: string; name: string; at: number }[] = JSON.parse(localStorage.getItem(key) || "[]");
+      const next = [{ provider, id, name: data.summary.name, at: Date.now() }, ...prev.filter((r) => !(r.provider === provider && r.id === id))].slice(0, 8);
+      localStorage.setItem(key, JSON.stringify(next));
+      window.dispatchEvent(new Event("rippit:recent"));
+    } catch {
+      /* ignore */
+    }
+  }, [data, provider, id]);
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
+  const [wfOpenComments, setWfOpenComments] = useState<number>(0);
+  const [commentGen, setCommentGen] = useState(0);
+
+  // Open comment threads per node (prefix query) + on the workflow itself.
+  useEffect(() => {
+    let live = true;
+    Promise.all([
+      fetchComments({ prefix: `node:${provider}:${id}:` }),
+      fetchComments({ target: `wf:${provider}:${id}` }),
+    ])
+      .then(([nodes, wf]) => {
+        if (!live) return;
+        const byNode: Record<string, number> = {};
+        for (const [key, c] of Object.entries(nodes.counts)) {
+          const nodeId = key.slice(`node:${provider}:${id}:`.length);
+          if (c.open > 0) byNode[nodeId] = c.open;
+        }
+        setCommentCounts(byNode);
+        setWfOpenComments(wf.counts[`wf:${provider}:${id}`]?.open ?? 0);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [provider, id, commentGen, selectedId]);
+
+  // "Changed since you last looked": fetch changes with the previous
+  // last-seen marker, mark the affected nodes, then record this visit.
+  useEffect(() => {
+    let live = true;
+    fetchWorkflowChanges(provider, id)
+      .then((d) => {
+        if (!live) return;
+        const lastSeen = d.lastSeenAt;
+        setChanges({ ...d, changes: d.changes.map((c) => ({ ...c, unseen: !lastSeen || c.detectedAt > lastSeen })) });
+        markWorkflowSeen(provider, id).catch(() => {});
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [provider, id, reloadKey]);
+
+  const changedNodeIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const c of changes?.changes ?? []) {
+      if (!c.unseen) continue;
+      if (c.nodeId) s.add(String(c.nodeId));
+      const ids = c.after?.nodeIds;
+      if (Array.isArray(ids)) for (const n of ids) s.add(String(n));
+    }
+    return s;
+  }, [changes]);
 
   const self: WorkflowRef = useMemo(
     () => ({ source: provider, refId: id }),
@@ -103,17 +183,25 @@ export default function WorkflowPage({
   const canvasData = useMemo(() => {
     if (!data) return null;
     const base = withPortals(data.summary, linkMap, self);
-    if (runtimeIssueByNode.size === 0) return base;
+    const hasComments = Object.keys(commentCounts).length > 0;
+    if (runtimeIssueByNode.size === 0 && changedNodeIds.size === 0 && !hasComments) return base;
     return {
       ...base,
       modules: base.modules.map((m) => {
         const extra = runtimeIssueByNode.get(String(m.id));
-        if (!extra) return m;
+        const changed = changedNodeIds.has(String(m.id));
+        const cc = commentCounts[String(m.id)];
+        if (!extra && !changed && !cc) return m;
         const existing = (m.issues ?? []).filter((i) => i.code !== "last-run-failed");
-        return { ...m, issues: [extra, ...existing] };
+        return {
+          ...m,
+          ...(changed ? { changed: true } : {}),
+          ...(cc ? { commentCount: cc } : {}),
+          ...(extra ? { issues: [extra, ...existing] } : {}),
+        };
       }),
     };
-  }, [data, linkMap, self, runtimeIssueByNode]);
+  }, [data, linkMap, self, runtimeIssueByNode, changedNodeIds, commentCounts]);
 
   const handleNodeClick = useCallback(
     (nodeId: NodeId) => {
@@ -123,6 +211,7 @@ export default function WorkflowPage({
         return;
       }
       setSelectedId(nodeId);
+      setOpenPanel(null);
       setNodeLoading(true);
       setNodeDetail(null);
       setNodeError(false);
@@ -230,58 +319,34 @@ export default function WorkflowPage({
           <ArrowLeft aria-hidden="true" className="size-3.5" />
         </Link>
         <div className="h-[18px] w-px bg-line" aria-hidden="true" />
-        <div className="flex min-w-0 items-center gap-2.5">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <h1 className="truncate text-[13px] font-semibold tracking-[-0.01em]">
             {summary.name}
           </h1>
           <StatusPill pill={meta.statusPill} />
-          <IssueCountChips counts={issueCounts} />
-          <TagPicker
-            provider={provider}
-            externalId={id}
-            tags={wfTags ?? []}
-            onChange={setWfTags}
-            compact
-          />
-          {provider === "make" && (
+          {issueCounts.error > 0 && <IssueCountChips counts={{ error: issueCounts.error, warn: 0, info: 0 }} />}
+          {wfMeta?.ownerName && (
             <button
               type="button"
-              onClick={() => setRunsOpen((o) => !o)}
-              aria-pressed={runsOpen}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-line-strong px-2.5 py-[3px] text-[10.5px] font-semibold text-t2 transition-colors hover:border-t1 hover:text-t1"
+              onClick={() => togglePanel("info")}
+              className="hidden truncate text-[10.5px] text-t3 hover:text-t1 md:inline"
+              title="Owner — open Info"
             >
-              Runs
-              {(lastRun || linkMapLastRun) && (
-                <LastRunChip
-                  status={(lastRun?.status ?? linkMapLastRun?.status ?? "unknown")}
-                  at={lastRun?.startedAt ?? linkMapLastRun?.at ?? null}
-                />
-              )}
+              owner · {wfMeta.ownerName}
             </button>
           )}
-          {nativeUrl && (
-            <a
-              href={nativeUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-line-strong px-2.5 py-[3px] text-[10.5px] font-semibold text-t2 transition-colors hover:border-t1 hover:text-t1"
-            >
-              Open in {connector.shortLabel}
-              <ArrowUpRight aria-hidden="true" className="size-3" />
-            </a>
-          )}
         </div>
-        <div className="flex-1" />
-        <div className="hidden items-center gap-3.5 md:flex">
-          {connector.headerStats(data).map((s, i) => (
-            <span key={s.label} className="flex items-center gap-3.5">
-              {i > 0 && (
-                <span className="h-[22px] w-px bg-line" aria-hidden="true" />
-              )}
-              <StatChip label={s.label} value={s.value} />
-            </span>
-          ))}
-        </div>
+        {nativeUrl && (
+          <a
+            href={nativeUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-line-strong px-2.5 py-[3px] text-[10.5px] font-semibold text-t2 transition-colors hover:border-t1 hover:text-t1"
+          >
+            Open in {connector.shortLabel}
+            <ArrowUpRight aria-hidden="true" className="size-3" />
+          </a>
+        )}
       </header>
 
       {/* canvas area */}
@@ -341,9 +406,59 @@ export default function WorkflowPage({
           )}
         </motion.div>
 
+        {summary.stepsUnavailable && (
+          <div className="pointer-events-none absolute inset-0 z-[2] flex items-center justify-center p-4">
+            <div className="pointer-events-auto card-sharp max-w-md rounded-card border border-line bg-panel p-5 text-center">
+              <h2 className="mb-1.5 text-[13px] font-semibold">Steps unavailable via OAuth</h2>
+              <p className="text-[12px] text-t2">
+                HighLevel&apos;s official API returns workflow names and status only. Connect
+                this location with the Rippit Chrome extension to see its steps, triggers and
+                links here.
+              </p>
+              <Link href="/settings/connections" className="mt-3 inline-block text-[12px] font-semibold underline-offset-4 hover:underline">
+                Open Settings → Connections
+              </Link>
+            </div>
+          </div>
+        )}
         <div className="absolute bottom-3 left-4 z-[2]">
           <Legend />
         </div>
+
+        <InspectorRail
+          active={openPanel}
+          onToggle={togglePanel}
+          items={[
+            { id: "info", label: "Info — owner, tags, stats", icon: RAIL_ICONS.info,
+              badge: wfTags && wfTags.length > 0 ? wfTags.length : null, tone: "muted" },
+            { id: "changes", label: "Changes", icon: RAIL_ICONS.changes,
+              badge: changes && changes.unseen > 0 ? changes.unseen : null, tone: "warn" },
+            { id: "comments", label: "Comments", icon: RAIL_ICONS.comments,
+              badge: wfOpenComments > 0 ? wfOpenComments : null, tone: "muted" },
+            { id: "runs", label: "Runs", icon: RAIL_ICONS.runs, hidden: provider !== "make",
+              badge: (lastRun?.status ?? linkMapLastRun?.status) === "error" || (lastRun?.status ?? linkMapLastRun?.status) === "incomplete" ? "!" : null, tone: "err" },
+            { id: "notes", label: "Notes", icon: RAIL_ICONS.notes, badge: wfMeta?.notes ? "•" : null, tone: "ok" },
+          ]}
+        />
+
+        {openPanel === "info" && (
+          <InfoPanel
+            provider={provider}
+            externalId={id}
+            name={summary.name}
+            stats={connector.headerStats(data)}
+            issueCounts={issueCounts}
+            nativeUrl={nativeUrl}
+            linkedSetHref={linkedSetHref}
+            tags={wfTags ?? []}
+            onTagsChange={setWfTags}
+            meta={wfMeta}
+            onMetaChange={(m) => (typeof m === "function" ? setWfMeta(m) : setWfMeta(m))}
+            lastRun={lastRun}
+            linkMapLastRun={linkMapLastRun}
+            onClose={() => setOpenPanel(null)}
+          />
+        )}
 
         <AnimatePresence>
           {(nodeDetail || nodeLoading || nodeError) && (
@@ -355,17 +470,43 @@ export default function WorkflowPage({
               onClose={closePanel}
               onFindUses={setFindUses}
               issues={selectedIssues}
+              commentTarget={selectedId != null ? `node:${provider}:${id}:${String(selectedId)}` : undefined}
             />
           )}
         </AnimatePresence>
 
         <FindUsesDialog target={findUses} onClose={() => setFindUses(null)} />
 
+        {notesOpen && (
+          <NotesPanel provider={provider} externalId={id} meta={wfMeta} onChange={setWfMeta} onClose={() => setOpenPanel(null)} />
+        )}
+        {commentsOpen && (
+          <CommentsDrawer
+            provider={provider}
+            externalId={id}
+            onClose={() => {
+              setOpenPanel(null);
+              setCommentGen((g) => g + 1);
+            }}
+            onCountChange={(open) => setWfOpenComments(open)}
+          />
+        )}
+        {changesOpen && (
+          <ChangesPanel
+            provider={provider}
+            externalId={id}
+            onClose={() => setOpenPanel(null)}
+            onSelectNode={(n) => {
+              const match = summary.modules.find((m) => String(m.id) === String(n));
+              if (match) handleNodeClick(match.id);
+            }}
+          />
+        )}
         {runsOpen && (
           <RunsPanel
             provider={provider}
             externalId={id}
-            onClose={() => setRunsOpen(false)}
+            onClose={() => setOpenPanel(null)}
             onSelectNode={(n) => {
               const match = summary.modules.find((m) => String(m.id) === String(n));
               if (match) handleNodeClick(match.id);
