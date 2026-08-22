@@ -6,40 +6,45 @@ import { useTheme } from "next-themes";
 import {
   Activity,
   ArrowUpRight,
+  AtSign,
+  Bell,
+  Bookmark,
   Box,
+  Clock3,
   Crosshair,
+  Inbox,
   LayoutDashboard,
   Link2,
+  Network,
   Search,
   Settings,
   SunMoon,
   Workflow,
+  Zap,
+  type LucideIcon,
 } from "lucide-react";
-import {
-  CommandDialog,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandShortcut,
-} from "@/components/ui/command";
-import {
-  useConnections,
-  useWorkflowIndex,
-} from "@/components/app/ConnectionsProvider";
+import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command";
+import { useConnections, useWorkflowIndex } from "@/components/app/ConnectionsProvider";
 import { usePalette } from "./palette-context";
-import { getConnector, providerColor } from "@/lib/connectors";
+import { getConnector } from "@/lib/connectors";
 import { workflowHref } from "@/lib/portals";
-import { searchEstate, SearchHit } from "@/app/lib/api";
-import { kindLabel } from "@/components/shared/AssetsSection";
+import { fetchViews, SavedView, searchEstate, SearchHit } from "@/app/lib/api";
+import { kindLabel, assetHref } from "@/components/shared/AssetsSection";
 import { useTags } from "@/components/tags/tags-context";
 import { TagChip } from "@/components/tags/TagChip";
+import { AppPuck } from "@/components/shared/AppPuck";
+import { Kbd } from "@/components/shell/Kbd";
+import { useRecentWorkflows } from "@/lib/stored";
 
+/*
+ * ⌘K action hub. Actions for the page you're on come first, then jumps
+ * (pages), workflows, steps & assets (server search from 2 chars), tags,
+ * views, recents. cmdk does the filtering/keyboard; the look is the
+ * handoff's 540px hub.
+ */
 const SEARCH_DEBOUNCE_MS = 200;
 const SEARCH_MIN_CHARS = 2;
 
-/** Debounced server search keyed by the typed query; stale responses ignored. */
 function useServerSearch(query: string, enabled: boolean) {
   const [result, setResult] = useState<{ q: string; hits: SearchHit[] } | null>(null);
   const q = query.trim();
@@ -62,17 +67,33 @@ function useServerSearch(query: string, enabled: boolean) {
 
 function hitHref(h: SearchHit): string {
   if (h.type === "tag" && h.tagId) return `/dashboard?tag=${encodeURIComponent(h.tagId)}`;
+  if (h.type === "asset" && h.kind && h.value) return assetHref(h.kind, h.value);
   if (!h.provider || !h.workflowExternalId) return "/dashboard";
   const base = workflowHref({ source: h.provider, refId: h.workflowExternalId });
-  return h.nodeId ? `${base}?node=${encodeURIComponent(h.nodeId)}` : base;
+  return h.nodeId ? `${base}?step=${encodeURIComponent(h.nodeId)}` : base;
 }
 
-const PAGES = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/unified", label: "Workflow map", icon: Workflow },
-  { href: "/monitor", label: "Monitor (preview — sample data)", icon: Activity },
+const PAGES: { href: string; label: string; icon: LucideIcon }[] = [
+  { href: "/dashboard", label: "Go to dashboard", icon: LayoutDashboard },
+  { href: "/w", label: "Workflows", icon: Workflow },
+  { href: "/map", label: "System map", icon: Network },
+  { href: "/assets", label: "Assets", icon: Link2 },
+  { href: "/inbox", label: "Needs you", icon: Inbox },
+  { href: "/activity", label: "Open notifications", icon: Bell },
+  { href: "/mentions", label: "Mentions & comments", icon: AtSign },
   { href: "/settings/connections", label: "Settings", icon: Settings },
+  { href: "/monitor", label: "Monitor (preview — sample data)", icon: Activity },
 ];
+
+function IconBox({ icon: Icon }: { icon: LucideIcon }) {
+  return (
+    <span className="inline-flex size-6 flex-none items-center justify-center rounded-[6px] border border-line bg-hover text-t2">
+      <Icon aria-hidden="true" className="size-3" />
+    </span>
+  );
+}
+
+const ITEM = "h-9 gap-2.5 rounded-[7px] px-[9px] text-[12.5px] text-t1 data-[selected=true]:bg-hover";
 
 export function CommandPalette() {
   const router = useRouter();
@@ -83,141 +104,83 @@ export function CommandPalette() {
   const [query, setQuery] = useState("");
   const { hits, pending } = useServerSearch(query, isOpen);
   const { tags } = useTags();
+  const recent = useRecentWorkflows();
+  const [views, setViews] = useState<SavedView[]>([]);
 
-  // Global ⌘K / Ctrl+K
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        setOpen(!isOpen);
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, setOpen]);
-
-  // Stop painting the 3D canvas while the palette is up: layers from its
-  // perspective/preserve-3d stack trigger a Chrome GPU bug that can blank
-  // overlaid surfaces (see [data-palette-open] rule in globals.css).
-  useEffect(() => {
-    document.documentElement.toggleAttribute("data-palette-open", isOpen);
-    return () => document.documentElement.removeAttribute("data-palette-open");
+    if (!isOpen) return;
+    let live = true;
+    fetchViews().then((d) => live && setViews(d.views)).catch(() => {});
+    return () => {
+      live = false;
+    };
   }, [isOpen]);
 
-  const byConnection = useMemo(() => {
-    return connections.map((conn) => ({
-      conn,
-      entries: index.filter((e) => e.connectionId === conn.id),
-    }));
-  }, [connections, index]);
+  const byConnection = useMemo(() => connections.map((conn) => ({ conn, entries: index.filter((e) => e.connectionId === conn.id) })), [connections, index]);
 
   const linkNames = useMemo(() => {
     if (!linkMap) return [];
-    const nameOf = (ref: { source: string; refId: string }) =>
-      linkMap.workflows.find(
-        (w) => w.source === ref.source && w.refId === ref.refId
-      )?.name || `${ref.source}:${ref.refId}`;
-    return linkMap.links.map((l, i) => ({
-      key: `${i}:${l.from.source}:${l.from.refId}:${l.to.refId}`,
-      from: l.from,
-      label: `${nameOf(l.from)} → ${nameOf(l.to)}`,
-      kind: l.kind,
-      dead: l.status === "dead",
-    }));
+    const nameOf = (ref: { source: string; refId: string }) => linkMap.workflows.find((w) => w.source === ref.source && w.refId === ref.refId)?.name || `${ref.source}:${ref.refId}`;
+    return linkMap.links.map((l, i) => ({ key: `${i}:${l.from.source}:${l.from.refId}:${l.to.refId}`, from: l.from, label: `${nameOf(l.from)} → ${nameOf(l.to)}`, kind: l.kind, dead: l.status === "dead" }));
   }, [linkMap]);
 
   const go = (href: string) => {
     close();
     router.push(href);
   };
+  const empty = query.trim().length === 0;
 
   return (
     <CommandDialog
       open={isOpen}
       onOpenChange={setOpen}
-      title="Search Rippit"
-      description="Search workflows, pages, and cross-platform links"
+      title="Action hub"
+      description="Act on the current workflow, or jump anywhere: workflows, steps, assets, pages"
+      className="w-[540px] max-w-[calc(100%-48px)] rounded-card border-line bg-pill shadow-[var(--shadow-float)] anim-pop-in"
     >
-      <CommandInput
-        placeholder="Search workflows, steps, assets, pages…"
-        value={query}
-        onValueChange={setQuery}
-      />
-      <CommandList>
-        <CommandEmpty>
-          {pending ? "Searching…" : "No results — try a workflow, step, asset, or page."}
-        </CommandEmpty>
+      <div className="flex items-center gap-2.5 border-b border-line2 px-3.5">
+        <Zap aria-hidden="true" className="size-3.5 flex-none text-t3" />
+        <CommandInput placeholder={scope ? `Act on ${scope.label} — or jump anywhere` : "Jump anywhere — workflows, steps, assets, pages"} value={query} onValueChange={setQuery} className="h-[46px] text-[13px]" wrapperClassName="flex-1 border-0 px-0" hideIcon />
+        <Kbd>esc</Kbd>
+      </div>
+      <CommandList className="max-h-[330px] p-1.5">
+        <CommandEmpty>{pending ? "Searching…" : "No results — try a workflow, step, asset, or page."}</CommandEmpty>
 
-        {hits.length > 0 && (
-          <CommandGroup heading="Search · steps & assets across platforms">
-            {hits
-              .filter((h) => h.type !== "workflow" && h.type !== "tag")
-              .map((h) => {
-                const connector = getConnector(h.provider!);
-                return (
-                  <CommandItem
-                    key={`${h.type}:${h.provider}:${h.workflowExternalId}:${h.nodeId ?? ""}:${h.value ?? ""}`}
-                    // include the query so cmdk's client filter keeps server hits
-                    value={`${query} ${h.type} ${h.label ?? ""} ${h.workflowName ?? ""}`}
-                    onSelect={() => go(hitHref(h))}
-                  >
-                    {h.type === "asset" ? (
-                      <Box aria-hidden="true" className="size-3.5 text-t3" />
-                    ) : (
-                      <Search aria-hidden="true" className="size-3.5 text-t3" />
-                    )}
-                    <span
-                      aria-hidden="true"
-                      className="size-[7px] flex-none rounded-[2px]"
-                      style={{ background: providerColor(h.provider!) }}
-                    />
-                    <span className="truncate">{h.label}</span>
-                    <span className="truncate text-[10.5px] text-t3">
-                      {h.type === "asset"
-                        ? `${kindLabel(h.kind ?? "")} · ${h.workflowName ?? ""}`
-                        : `${h.workflowName ?? ""}${h.secondary ? ` · ${h.secondary}` : ""}`}
-                    </span>
-                    <CommandShortcut>
-                      {h.type === "asset" ? "asset" : `${connector.nouns.step}${h.ordinal ? ` ${h.ordinal}` : ""}`}
-                    </CommandShortcut>
-                  </CommandItem>
-                );
-              })}
+        {scope?.actions && scope.actions.length > 0 && (
+          <CommandGroup heading="Actions">
+            {scope.actions.map((a) => (
+              <CommandItem
+                key={a.id}
+                value={`action ${a.label}`}
+                className={ITEM}
+                onSelect={() => {
+                  close();
+                  a.run();
+                }}
+              >
+                <IconBox icon={Zap} />
+                <span className="flex-1 truncate">{a.label}</span>
+                {a.hint && <CommandShortcut className="font-mono text-[8.5px]">{a.hint}</CommandShortcut>}
+              </CommandItem>
+            ))}
           </CommandGroup>
         )}
 
-        <CommandGroup heading="Pages">
-          {PAGES.map((p) => (
-            <CommandItem key={p.href} value={`page ${p.label}`} onSelect={() => go(p.href)}>
-              <p.icon aria-hidden="true" className="size-3.5 text-t3" />
-              {p.label}
-            </CommandItem>
-          ))}
-          <CommandItem
-            value="toggle theme light dark"
-            onSelect={() => {
-              setTheme(resolvedTheme === "dark" ? "light" : "dark");
-              close();
-            }}
-          >
-            <SunMoon aria-hidden="true" className="size-3.5 text-t3" />
-            Toggle theme
-          </CommandItem>
-        </CommandGroup>
-
-        {tags.length > 0 && (
-          <CommandGroup heading="Tags">
-            {tags.map((t) => (
-              <CommandItem
-                key={t.id}
-                value={`tag ${t.name}`}
-                onSelect={() => go(`/dashboard?tag=${encodeURIComponent(t.id)}`)}
-              >
-                <TagChip tag={t} size="xs" />
-                <span className="text-[10.5px] text-t3">{t.workflows ?? 0} workflows</span>
-                <CommandShortcut>filter</CommandShortcut>
-              </CommandItem>
-            ))}
+        {hits.length > 0 && (
+          <CommandGroup heading="Steps & assets">
+            {hits
+              .filter((h) => h.type !== "workflow" && h.type !== "tag")
+              .map((h) => {
+                const connector = h.provider ? getConnector(h.provider) : null;
+                return (
+                  <CommandItem key={`${h.type}:${h.provider}:${h.workflowExternalId}:${h.nodeId ?? ""}:${h.value ?? ""}`} value={`${query} ${h.type} ${h.label ?? ""} ${h.workflowName ?? ""}`} className={ITEM} onSelect={() => go(hitHref(h))}>
+                    <IconBox icon={h.type === "asset" ? Box : Search} />
+                    <span className="truncate">{h.label}</span>
+                    <span className="truncate text-[10.5px] text-t3">{h.type === "asset" ? `${kindLabel(h.kind ?? "")} · ${h.workflowName ?? ""}` : `${h.workflowName ?? ""}${h.secondary ? ` · ${h.secondary}` : ""}`}</span>
+                    <CommandShortcut className="font-mono text-[8.5px]">{h.type === "asset" ? "asset" : `${connector?.nouns.step ?? "step"}${h.ordinal ? ` ${h.ordinal}` : ""}`}</CommandShortcut>
+                  </CommandItem>
+                );
+              })}
           </CommandGroup>
         )}
 
@@ -227,14 +190,71 @@ export function CommandPalette() {
               <CommandItem
                 key={String(n.id)}
                 value={`focus ${n.label} ${String(n.id)}`}
+                className={ITEM}
                 onSelect={() => {
                   scope.onSelect(n.id);
                   close();
                 }}
               >
-                <Crosshair aria-hidden="true" className="size-3.5 text-t3" />
+                <IconBox icon={Crosshair} />
                 <span className="truncate">{n.label}</span>
-                <CommandShortcut>focus</CommandShortcut>
+                <CommandShortcut className="font-mono text-[8.5px]">focus</CommandShortcut>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        <CommandGroup heading="Jump to">
+          {PAGES.map((p) => (
+            <CommandItem key={p.href} value={`page ${p.label}`} className={ITEM} onSelect={() => go(p.href)}>
+              <IconBox icon={p.icon} />
+              {p.label}
+            </CommandItem>
+          ))}
+          <CommandItem
+            value="toggle theme light dark"
+            className={ITEM}
+            onSelect={() => {
+              setTheme(resolvedTheme === "dark" ? "light" : "dark");
+              close();
+            }}
+          >
+            <IconBox icon={SunMoon} />
+            Toggle theme
+          </CommandItem>
+        </CommandGroup>
+
+        {empty && recent.length > 0 && (
+          <CommandGroup heading="Recent">
+            {recent.slice(0, 6).map((r) => (
+              <CommandItem key={`${r.provider}:${r.id}`} value={`recent ${r.name}`} className={ITEM} onSelect={() => go(`/w/${r.provider}/${r.id}`)}>
+                <IconBox icon={Clock3} />
+                <span className="truncate">{r.name}</span>
+                <CommandShortcut className="font-mono text-[8.5px]">{getConnector(r.provider).shortLabel}</CommandShortcut>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {views.length > 0 && (
+          <CommandGroup heading="Views">
+            {views.map((v) => (
+              <CommandItem key={v.id} value={`view ${v.name}`} className={ITEM} onSelect={() => go(`/${v.kind === "unified" ? "map" : "dashboard"}?view=${encodeURIComponent(v.id)}`)}>
+                <IconBox icon={Bookmark} />
+                <span className="truncate">{v.name}</span>
+                <CommandShortcut className="font-mono text-[8.5px]">{v.kind === "unified" ? "map" : "dashboard"}</CommandShortcut>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {tags.length > 0 && (
+          <CommandGroup heading="Tags">
+            {tags.map((t) => (
+              <CommandItem key={t.id} value={`tag ${t.name}`} className={ITEM} onSelect={() => go(`/dashboard?tag=${encodeURIComponent(t.id)}`)}>
+                <TagChip tag={t} size="xs" />
+                <span className="text-[10.5px] text-t3">{t.workflows ?? 0} workflows</span>
+                <CommandShortcut className="font-mono text-[8.5px]">filter</CommandShortcut>
               </CommandItem>
             ))}
           </CommandGroup>
@@ -244,36 +264,13 @@ export function CommandPalette() {
           if (entries.length === 0) return null;
           const connector = getConnector(conn.provider);
           return (
-            <CommandGroup
-              key={conn.id}
-              heading={`${connector.shortLabel} · ${
-                conn.label || conn.externalId
-              }`}
-            >
+            <CommandGroup key={conn.id} heading={`${connector.shortLabel} · ${conn.displayName}`}>
               {entries.map((e) => (
-                <CommandItem
-                  key={`${e.provider}:${e.refId}`}
-                  value={`${e.name} ${e.groupPath.join(" ")} ${connector.label}`}
-                  onSelect={() =>
-                    go(workflowHref({ source: e.provider, refId: e.refId }))
-                  }
-                >
-                  <span
-                    aria-hidden="true"
-                    className="size-[7px] flex-none rounded-[2px]"
-                    style={{ background: providerColor(e.provider) }}
-                  />
+                <CommandItem key={`${e.provider}:${e.refId}`} value={`${e.name} ${e.groupPath.join(" ")} ${connector.label}`} className={ITEM} onSelect={() => go(workflowHref({ source: e.provider, refId: e.refId }))}>
+                  <AppPuck app={e.app || e.provider} size={20} />
                   <span className="truncate">{e.name}</span>
-                  {e.groupPath.length > 0 && (
-                    <span className="truncate text-[10.5px] text-t3">
-                      {e.groupPath.join(" / ")}
-                    </span>
-                  )}
-                  {connector.nativeUrl && (
-                    <CommandShortcut aria-hidden="true">
-                      <ArrowUpRight className="inline size-3" />
-                    </CommandShortcut>
-                  )}
+                  {e.groupPath.length > 0 && <span className="truncate text-[10.5px] text-t3">{e.groupPath.join(" / ")}</span>}
+                  <CommandShortcut className="font-mono text-[8.5px]">{connector.shortLabel}</CommandShortcut>
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -283,31 +280,20 @@ export function CommandPalette() {
         {linkNames.length > 0 && (
           <CommandGroup heading="Cross-platform links">
             {linkNames.map((l) => (
-              <CommandItem
-                key={l.key}
-                value={`link ${l.label}`}
-                onSelect={() =>
-                  go(
-                    workflowHref({
-                      source: l.from.source,
-                      refId: l.from.refId,
-                    })
-                  )
-                }
-              >
-                <Link2
-                  aria-hidden="true"
-                  className={`size-3.5 ${l.dead ? "text-err-text" : "text-t3"}`}
-                />
-                <span className="truncate">{l.label}</span>
-                <CommandShortcut>
-                  {l.dead ? "broken" : l.kind === "subflow" ? "subflow" : "webhook"}
-                </CommandShortcut>
+              <CommandItem key={l.key} value={`link ${l.label}`} className={ITEM} onSelect={() => go(workflowHref({ source: l.from.source, refId: l.from.refId }))}>
+                <IconBox icon={l.dead ? ArrowUpRight : Link2} />
+                <span className={`truncate ${l.dead ? "text-err-text" : ""}`}>{l.label}</span>
+                <CommandShortcut className="font-mono text-[8.5px]">{l.dead ? "broken" : l.kind === "subflow" ? "subflow" : "webhook"}</CommandShortcut>
               </CommandItem>
             ))}
           </CommandGroup>
         )}
       </CommandList>
+      <div className="flex items-center gap-3 border-t border-line2 px-3.5 py-[7px] font-mono text-[9px] text-t3">
+        <span>↑↓ navigate</span>
+        <span>↵ run</span>
+        <span className="ml-auto">⌘K</span>
+      </div>
     </CommandDialog>
   );
 }

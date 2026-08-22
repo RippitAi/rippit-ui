@@ -2,14 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/components/app/AuthProvider";
 import { supabase, supabaseMisconfigured } from "@/lib/supabase";
-
-const EASE = [0.22, 1, 0.36, 1] as const;
 
 type Mode = "signin" | "signup" | "otp" | "otp-verify" | "forgot";
 
@@ -135,27 +132,20 @@ export default function LoginPage() {
         }}
       />
 
-      <motion.div
-        initial={{ opacity: 0, y: 18 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.55, ease: EASE }}
-        className="relative w-full max-w-sm"
-      >
+      <div className="relative w-full max-w-[384px]" style={{ animation: "riseIn .55s var(--ease-out) both" }}>
         <div className="mb-8 flex flex-col items-center text-center">
-          <motion.div
+          <div
             aria-hidden="true"
-            initial={{ rotate: 0, opacity: 0 }}
-            animate={{ rotate: 45, opacity: 1 }}
-            transition={{ duration: 0.7, ease: EASE, delay: 0.1 }}
-            className="mb-5 flex size-10 items-center justify-center rounded-[11px] bg-t1"
+            className="mb-5 flex size-10 rotate-45 items-center justify-center rounded-[11px] bg-t1"
+            style={{ animation: "spinIn .7s var(--ease-out) .1s both" }}
           >
             <div className="size-3 rounded-full bg-bg" />
-          </motion.div>
+          </div>
           <h1 className="text-[26px] font-bold tracking-[-0.5px]">rippit</h1>
           <p className="mt-1.5 text-[13px] text-t2">{TITLES[mode]}</p>
         </div>
 
-        <div className="space-y-4 rounded-card border border-line bg-panel p-6 shadow-[0_12px_34px_var(--shade)] backdrop-blur-[14px]">
+        <div className="space-y-4 rounded-card border border-line bg-panel p-6 shadow-[var(--shadow-float)] backdrop-blur-[14px]">
           {supabaseMisconfigured() && (
             <div
               role="alert"
@@ -261,15 +251,13 @@ export default function LoginPage() {
               </p>
             )}
             {error && (
-              <motion.div
+              <div
                 role="alert"
                 id="login-error"
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="rounded-control border border-[color-mix(in_srgb,var(--err)_32%,transparent)] bg-[color-mix(in_srgb,var(--err)_10%,transparent)] px-3 py-2 text-[12px] text-err-text"
+                className="anim-fade-up rounded-control border border-[color-mix(in_srgb,var(--err)_32%,transparent)] bg-[color-mix(in_srgb,var(--err)_10%,transparent)] px-3 py-2 text-[12px] text-err-text"
               >
                 {error}
-              </motion.div>
+              </div>
             )}
 
             <Button
@@ -277,9 +265,12 @@ export default function LoginPage() {
               disabled={busy}
               className="h-auto w-full cursor-pointer rounded-control py-2.5 text-[12.5px] font-semibold hover:opacity-85 disabled:opacity-50"
             >
-              {busy
-                ? "Working…"
-                : mode === "signin"
+              {busy ? (
+                <span className="inline-flex items-center gap-2">
+                  <span aria-hidden="true" className="spin inline-block size-3 rounded-full border-[1.5px] border-current border-t-transparent" />
+                  {mode === "signin" ? "Signing in…" : "Working…"}
+                </span>
+              ) : mode === "signin"
                   ? "Sign in"
                   : mode === "signup"
                     ? "Create account"
@@ -326,7 +317,7 @@ export default function LoginPage() {
         <p className="mt-6 text-center font-mono text-[10px] text-t3">
           rippit · workflow monitor
         </p>
-      </motion.div>
+      </div>
     </main>
   );
 }

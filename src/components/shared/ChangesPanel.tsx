@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
 import { ackVersion, fetchWorkflowChanges, NodeId, WorkflowChange, WorkflowChanges } from "@/app/lib/api";
 import type { ProviderId } from "@/lib/connectors/types";
 import { relativeTime } from "@/components/shared/RunsPanel";
@@ -58,16 +57,14 @@ export function ChangeRow({ c, onSelectNode }: { c: WorkflowChange; onSelectNode
   );
 }
 
-export function ChangesPanel({
+export function ChangesBody({
   provider,
   externalId,
-  onClose,
   onSelectNode,
   onData,
 }: {
   provider: ProviderId;
   externalId: string;
-  onClose: () => void;
   onSelectNode?: (nodeId: NodeId) => void;
   onData?: (data: WorkflowChanges) => void;
 }) {
@@ -98,23 +95,13 @@ export function ChangesPanel({
   const versionMeta = new Map((data?.versions ?? []).map((v) => [v.version, v]));
 
   return (
-    <aside
-      role="dialog"
-      aria-label="Changes"
-      className="absolute bottom-3 right-3 top-3 z-[3] flex w-[380px] max-w-[calc(100%-24px)] flex-col rounded-card border border-line bg-pill shadow-[0_16px_40px_var(--ambient)]"
-    >
-      <header className="flex items-center gap-2 border-b border-line2 px-3.5 py-2.5">
-        <h2 className="text-[12.5px] font-semibold">Changes</h2>
-        {data && (
-          <span className="text-[10.5px] text-t3">
-            {data.changes.length} · {data.unseen} new since you last looked
-          </span>
-        )}
-        <div className="flex-1" />
-        <button type="button" onClick={onClose} aria-label="Close changes" className="flex size-6 items-center justify-center rounded-control border border-line text-t3 hover:text-t1">
-          <X aria-hidden="true" className="size-3" />
-        </button>
-      </header>
+    <>
+      {data && (
+        <p className="flex-none border-b border-line2 px-3.5 py-1.5 text-[10.5px] text-t3">
+          {data.changes.length} change{data.changes.length === 1 ? "" : "s"} · {data.unseen} new since you last looked
+          {data.lastSeenAt ? ` · you last looked ${relativeTime(data.lastSeenAt)}` : ""}
+        </p>
+      )}
       <div className="min-h-0 flex-1 overflow-auto p-2">
         {error && <p role="alert" className="px-1.5 text-[11px] text-err-text">{error}</p>}
         {!data && !error && <p className="px-1.5 text-[11px] text-t3">Loading…</p>}
@@ -156,9 +143,9 @@ export function ChangesPanel({
           );
         })}
       </div>
-      <footer className="border-t border-line2 px-3.5 py-1.5 text-[10px] text-t3">
+      <p className="flex-none border-t border-line2 px-3.5 py-1.5 text-[10px] text-t3">
         Detected by Rippit at sync (platform-independent); who/when comes from Make&apos;s edit log where available.
-      </footer>
-    </aside>
+      </p>
+    </>
   );
 }

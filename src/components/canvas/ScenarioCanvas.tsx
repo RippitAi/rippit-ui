@@ -1,88 +1,44 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { motion } from "framer-motion";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Maximize2, Minus, Plus } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { appColor, appGlyph, appName, onColorGradient } from "@/lib/apps";
-import {
-  CONNECTORS,
-  badgeTooltip,
-  isProviderId,
-  providerColor,
-} from "@/lib/connectors";
-import type { ProviderId, UnifiedGroup } from "@/lib/connectors/types";
+import { appColor, appGlyph, appName } from "@/lib/apps";
+import { CONNECTORS, badgeTooltip, isProviderId, providerColor } from "@/lib/connectors";
+import type { UnifiedGroup } from "@/lib/connectors/types";
 import type { ModuleInfo, Connection, NodeId } from "@/app/lib/api";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { IconBtn } from "@/components/shell/IconBtn";
+import {
+  ASSET_KINDS,
+  COL_W,
+  CROSS_KINDS,
+  MARGIN_X,
+  MARGIN_Y,
+  NODE_HALF,
+  NON_LAYOUT_KINDS,
+  ROW_H,
+  computeLayout,
+  edgePath,
+  ordinalPhrase,
+  worstSeverity,
+} from "./layout";
 
-const POP_EASE = [0.34, 1.56, 0.64, 1] as const;
-const NODE_HALF = 70; // wrapper is 140 wide, puck centered
-const COL_W = 300;
-const ROW_H = 180;
-const COMP_GAP = 140;
-const MARGIN_X = 160;
-const MARGIN_Y = 90;
-const SQRT2 = 1.4142;
-const COS_TILT = 0.5736; // cos 55°
-/* Usable screen box when a node is centered (right inset clears the
-   inspector panel that opens on selection). */
-const CENTER_INSETS = { left: 20, right: 392, top: 70, bottom: 20 };
+export { worstSeverity, ordinalPhrase } from "./layout";
 
-/* Edge kinds that must not shape the layered layout: goto is a loop back-edge
-   (would corrupt Kahn columns); the cross-system kinds connect separate
-   workflow groups that lay out independently. All are still rendered. */
-const CROSS_KINDS = new Set(["webhook-call", "api-call", "subflow"]);
-/* "Both touch the same asset" edges (unified map) — informational, dotted,
-   never laid out or pulsed. */
-const ASSET_KINDS = new Set(["shared-asset"]);
+/*
+ * Workflow canvas (v2 shell). DOM nodes + one SVG for edges; pan/zoom via a
+ * single transform on the world layer. Keyboard: Tab reaches steps (roving
+ * tabindex), arrows move along the flow, Enter opens; with the canvas itself
+ * focused arrows pan and + / − / F zoom / fit. A screen-reader list mirrors
+ * the structure. Live runs animate as pulses along sequence edges (SMIL),
+ * only while the tab is visible and the user hasn't asked for reduced motion.
+ */
 
 const SEVERITY_VAR = { error: "--err", warn: "--warn", info: "--off" } as const;
-
-export function worstSeverity(
-  issues: { severity: "error" | "warn" | "info" }[] | undefined
-): "error" | "warn" | "info" | null {
-  if (!issues || issues.length === 0) return null;
-  if (issues.some((i) => i.severity === "error")) return "error";
-  if (issues.some((i) => i.severity === "warn")) return "warn";
-  return "info";
-}
-
-/** "2.1.3" → "3rd in route 1 after step 2" style phrase for tooltips/aria. */
-export function ordinalPhrase(ordinal: string): string {
-  const parts = ordinal.split(".");
-  if (parts.length === 1) return `${ordinal}${ordinalSuffix(Number(ordinal))}`;
-  // a.b.c… — last segment is the position inside the branch named by the
-  // previous segment ("2.1.3" → step 3 of route 1 under step 2).
-  const pos = parts[parts.length - 1];
-  const branch = parts[parts.length - 2];
-  const parent = parts.slice(0, -2).join(".");
-  const branchKind = /^[A-Z]$/.test(branch) ? "branch" : "route";
-  return `${pos}${ordinalSuffix(Number(pos))} in ${branchKind} ${branch}${parent ? ` after step ${parent}` : ""}`;
-}
-
-function ordinalSuffix(n: number): string {
-  if (!Number.isFinite(n)) return "";
-  const v = n % 100;
-  if (v >= 11 && v <= 13) return "th";
-  return ["th", "st", "nd", "rd"][n % 10] ?? "th";
-}
-const NON_LAYOUT_KINDS = new Set(["goto", ...CROSS_KINDS, ...ASSET_KINDS]);
-
-/* Group container paddings around a group's node bounding box. */
-const GROUP_PAD_X = 110;
-const GROUP_PAD_TOP = 96;
-const GROUP_PAD_BOTTOM = 64;
-const GROUP_GAP = 200;
+const FIT_MIN = 0.62;
+const FIT_MAX = 1.05;
+const PULSE_CAP = 40;
+const LITE_AT = 120;
 
 interface CanvasNode {
   id: NodeId;
@@ -105,246 +61,7 @@ interface CanvasNode {
   issueText?: string | null;
   changed?: boolean;
   commentCount?: number;
-}
-
-interface GroupBox {
-  id: string;
-  name: string;
-  source: ProviderId;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
-/*
- * Layered left-to-right layout computed from the connection graph.
- * Make.com designer coordinates are ignored on purpose — real blueprints
- * scatter modules across thousands of pixels, which forces the fit zoom
- * so far out that pucks and edges become unreadable. GHL workflows carry
- * no coordinates at all, so the graph is the only source of truth.
- */
-function layoutGraph(modules: ModuleInfo[], connections: Connection[]) {
-  const ids = modules.map((m) => m.id);
-  const idSet = new Set(ids);
-  /* Only goto (loop back-edges) is excluded from layering — cross-kind edges
-     participate so portal chips sit right after their anchor step. Grouped
-     mode never passes cross-group edges here. */
-  const conns = connections.filter(
-    (c) =>
-      idSet.has(c.from) &&
-      idSet.has(c.to) &&
-      c.from !== c.to &&
-      c.kind !== "goto"
-  );
-
-  const out = new Map<NodeId, NodeId[]>();
-  const parents = new Map<NodeId, NodeId[]>();
-  const indeg = new Map<NodeId, number>();
-  for (const id of ids) {
-    out.set(id, []);
-    parents.set(id, []);
-    indeg.set(id, 0);
-  }
-  for (const c of conns) {
-    out.get(c.from)!.push(c.to);
-    parents.get(c.to)!.push(c.from);
-    indeg.set(c.to, (indeg.get(c.to) || 0) + 1);
-  }
-
-  /* Column = longest path from a root (Kahn's algorithm; cycle leftovers
-     land in column 0). */
-  const col = new Map<NodeId, number>();
-  const deg = new Map(indeg);
-  const queue = ids.filter((id) => deg.get(id) === 0);
-  for (const id of queue) col.set(id, 0);
-  while (queue.length) {
-    const id = queue.shift()!;
-    for (const next of out.get(id)!) {
-      col.set(next, Math.max(col.get(next) ?? 0, (col.get(id) ?? 0) + 1));
-      deg.set(next, deg.get(next)! - 1);
-      if (deg.get(next) === 0) queue.push(next);
-    }
-  }
-  for (const id of ids) if (!col.has(id)) col.set(id, 0);
-
-  /* Weakly-connected components, stacked vertically. */
-  const comp = new Map<NodeId, number>();
-  let compCount = 0;
-  for (const id of ids) {
-    if (comp.has(id)) continue;
-    const stack = [id];
-    comp.set(id, compCount);
-    while (stack.length) {
-      const cur = stack.pop()!;
-      for (const nb of [...out.get(cur)!, ...parents.get(cur)!]) {
-        if (!comp.has(nb)) {
-          comp.set(nb, compCount);
-          stack.push(nb);
-        }
-      }
-    }
-    compCount++;
-  }
-
-  const posOf = new Map<NodeId, { cx: number; cy: number; col: number }>();
-  const row = new Map<NodeId, number>();
-  let yOffset = 0;
-
-  for (let ci = 0; ci < compCount; ci++) {
-    const members = ids.filter((id) => comp.get(id) === ci);
-    const byCol = new Map<number, NodeId[]>();
-    for (const id of members) {
-      const c = col.get(id)!;
-      if (!byCol.has(c)) byCol.set(c, []);
-      byCol.get(c)!.push(id);
-    }
-    const colKeys = [...byCol.keys()].sort((a, b) => a - b);
-
-    /* Order each column by the average row of its parents (barycenter)
-       to keep edges short and mostly horizontal. */
-    for (const c of colKeys) {
-      const group = byCol.get(c)!;
-      const keyed = group.map((id, i) => {
-        const ps = parents.get(id)!.filter((p) => row.has(p));
-        const bary = ps.length
-          ? ps.reduce((s: number, p) => s + row.get(p)!, 0) / ps.length
-          : i;
-        return { id, bary, i };
-      });
-      keyed.sort((a, b) => a.bary - b.bary || a.i - b.i);
-      keyed.forEach((k, r) => row.set(k.id, r));
-      byCol.set(
-        c,
-        keyed.map((k) => k.id)
-      );
-    }
-
-    const compHeight =
-      Math.max(...colKeys.map((c) => byCol.get(c)!.length), 1) * ROW_H;
-
-    for (const c of colKeys) {
-      const group = byCol.get(c)!;
-      const colHeight = group.length * ROW_H;
-      group.forEach((id, r) => {
-        posOf.set(id, {
-          cx: MARGIN_X + c * COL_W,
-          cy:
-            MARGIN_Y +
-            yOffset +
-            (compHeight - colHeight) / 2 +
-            r * ROW_H +
-            ROW_H / 2,
-          col: c,
-        });
-      });
-    }
-    yOffset += compHeight + COMP_GAP;
-  }
-
-  const maxCol = Math.max(0, ...[...col.values()]);
-  return {
-    posOf,
-    maxCol,
-    w: MARGIN_X * 2 + maxCol * COL_W,
-    h: MARGIN_Y * 2 + Math.max(ROW_H, yOffset - COMP_GAP),
-  };
-}
-
-/*
- * Group-aware layout. Without groups this is layoutGraph unchanged. With
- * groups (the unified view), each group lays out independently with the same
- * algorithm, groups are ordered topologically over the cross-edge graph
- * (sources above targets, so cross-edges stay short), stacked vertically,
- * and each gets a container box around its nodes.
- */
-function computeLayout(
-  modules: ModuleInfo[],
-  connections: Connection[],
-  groups?: UnifiedGroup[]
-) {
-  if (!groups || groups.length === 0) {
-    return { ...layoutGraph(modules, connections), groupBoxes: [] as GroupBox[] };
-  }
-
-  const groupOf = (id: NodeId): string | undefined =>
-    groups.find((g) => String(id).startsWith(`${g.id}:`))?.id;
-
-  /* Topological order over group-level cross-edges (Kahn; cycles fall back
-     to insertion order). */
-  const indeg = new Map<string, number>(groups.map((g) => [g.id, 0]));
-  const out = new Map<string, string[]>(groups.map((g) => [g.id, []]));
-  const seen = new Set<string>();
-  for (const c of connections) {
-    if (!CROSS_KINDS.has(c.kind ?? "")) continue;
-    const a = groupOf(c.from);
-    const b = groupOf(c.to);
-    if (!a || !b || a === b || seen.has(`${a}→${b}`)) continue;
-    seen.add(`${a}→${b}`);
-    out.get(a)!.push(b);
-    indeg.set(b, (indeg.get(b) || 0) + 1);
-  }
-  const ordered: string[] = [];
-  const queue = groups.filter((g) => indeg.get(g.id) === 0).map((g) => g.id);
-  const deg = new Map(indeg);
-  while (queue.length) {
-    const id = queue.shift()!;
-    ordered.push(id);
-    for (const next of out.get(id)!) {
-      deg.set(next, deg.get(next)! - 1);
-      if (deg.get(next) === 0) queue.push(next);
-    }
-  }
-  for (const g of groups) if (!ordered.includes(g.id)) ordered.push(g.id);
-
-  const posOf = new Map<NodeId, { cx: number; cy: number; col: number }>();
-  const groupBoxes: GroupBox[] = [];
-  let yOffset = 0;
-  let maxCol = 0;
-  let maxW = 0;
-
-  for (const gid of ordered) {
-    const group = groups.find((g) => g.id === gid)!;
-    const members = modules.filter((m) => String(m.id).startsWith(`${gid}:`));
-    if (members.length === 0) continue;
-    const memberIds = new Set(members.map((m) => m.id));
-    const internal = connections.filter(
-      (c) => memberIds.has(c.from) && memberIds.has(c.to)
-    );
-    const sub = layoutGraph(members, internal);
-
-    let minX = Infinity,
-      maxX = -Infinity,
-      minY = Infinity,
-      maxY = -Infinity;
-    for (const [id, p] of sub.posOf) {
-      posOf.set(id, { cx: p.cx, cy: p.cy + yOffset, col: p.col });
-      minX = Math.min(minX, p.cx);
-      maxX = Math.max(maxX, p.cx);
-      minY = Math.min(minY, p.cy + yOffset);
-      maxY = Math.max(maxY, p.cy + yOffset);
-    }
-    groupBoxes.push({
-      id: gid,
-      name: group.name,
-      source: group.source,
-      x: minX - GROUP_PAD_X,
-      y: minY - GROUP_PAD_TOP,
-      w: maxX - minX + GROUP_PAD_X * 2,
-      h: maxY - minY + GROUP_PAD_TOP + GROUP_PAD_BOTTOM,
-    });
-    maxCol = Math.max(maxCol, sub.maxCol);
-    maxW = Math.max(maxW, sub.w);
-    yOffset += sub.h + GROUP_GAP - MARGIN_Y;
-  }
-
-  return {
-    posOf,
-    maxCol,
-    w: maxW,
-    h: Math.max(ROW_H, yOffset - GROUP_GAP + MARGIN_Y * 2),
-    groupBoxes,
-  };
+  runLine?: { text: string; failing: boolean } | null;
 }
 
 interface EdgeView {
@@ -355,140 +72,24 @@ interface EdgeView {
   status?: string;
   mx: number;
   my: number;
-  t0: number;
-  t1: number;
+  seq: boolean;
 }
 
-/*
- * Live pulses — the monitor's comet effect running along the real edges.
- * Each edge owns a slot in a master cycle keyed off its source column, so
- * a run visually flows left→right through the actual graph. rAF +
- * getPointAtLength, per the handoff's production recommendation.
- */
-const DOTS = [
-  { r: 8, op: 0.5, delay: 0, halo: true, wave: 0 },
-  { r: 3.5, op: 1, delay: 0, halo: false, wave: 0 },
-  { r: 2.2, op: 0.55, delay: 0.07, halo: false, wave: 0 },
-  { r: 1.5, op: 0.3, delay: 0.14, halo: false, wave: 0 },
-  { r: 8, op: 0.5, delay: 0, halo: true, wave: 1 },
-  { r: 3.5, op: 1, delay: 0, halo: false, wave: 1 },
-];
-
-function PulseLayer({ edges, cycle }: { edges: EdgeView[]; cycle: number }) {
-  const paths = useRef(new Map<number, SVGPathElement>());
-  const dots = useRef(new Map<string, SVGCircleElement>());
-  const edgesRef = useRef(edges);
-  useEffect(() => {
-    edgesRef.current = edges;
-  }, [edges]);
-
-  useEffect(() => {
-    let raf = 0;
-    let sim = 0;
-    let last = performance.now();
-    const frame = (now: number) => {
-      sim += Math.min(0.1, (now - last) / 1000);
-      last = now;
-      const t = sim % cycle;
-      for (const e of edgesRef.current) {
-        const path = paths.current.get(e.key);
-        if (!path) continue;
-        let len = -1;
-        for (let i = 0; i < DOTS.length; i++) {
-          const spec = DOTS[i];
-          const el = dots.current.get(`${e.key}:${i}`);
-          if (!el) continue;
-          const off = spec.wave * (cycle / 2) + spec.delay;
-          const tt = (t - off + cycle) % cycle;
-          if (tt >= e.t0 && tt <= e.t1 && e.t1 > e.t0) {
-            if (len < 0) len = path.getTotalLength();
-            const frac = (tt - e.t0) / (e.t1 - e.t0);
-            const p = path.getPointAtLength(frac * len);
-            el.setAttribute("cx", String(p.x));
-            el.setAttribute("cy", String(p.y));
-            el.setAttribute("opacity", String(spec.op));
-          } else {
-            el.setAttribute("opacity", "0");
-          }
-        }
-      }
-      raf = requestAnimationFrame(frame);
-    };
-    raf = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(raf);
-  }, [cycle]);
-
-  return (
-    <svg
-      aria-hidden="true"
-      className="pointer-events-none absolute inset-0"
-      style={{ overflow: "visible" }}
-      width={1}
-      height={1}
-    >
-      {edges.map((e) => (
-        <g key={e.key}>
-          <path
-            ref={(el) => {
-              if (el) paths.current.set(e.key, el);
-              else paths.current.delete(e.key);
-            }}
-            d={e.d}
-            fill="none"
-            stroke="none"
-          />
-          {DOTS.map((spec, i) => (
-            <circle
-              key={i}
-              ref={(el) => {
-                if (el) dots.current.set(`${e.key}:${i}`, el);
-                else dots.current.delete(`${e.key}:${i}`);
-              }}
-              r={spec.r}
-              fill="var(--text)"
-              opacity={0}
-              style={spec.halo ? { filter: "blur(6px)" } : undefined}
-            />
-          ))}
-        </g>
-      ))}
-    </svg>
-  );
+/** Per-step run annotation (under the label). Optional — never invented. */
+export interface RunStat {
+  text: string;
+  failing?: boolean;
 }
 
-function ClusterButton({
-  label,
-  onClick,
-  active,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  active?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          onClick={onClick}
-          aria-label={label}
-          aria-pressed={active}
-          className="flex size-8 cursor-pointer items-center justify-center rounded-control border backdrop-blur-[8px] transition-colors hover:border-t1"
-          style={{
-            background: active ? "var(--text)" : "var(--glass)",
-            borderColor: active ? "var(--text)" : "var(--line-strong)",
-            color: active ? "var(--bg)" : "var(--t2)",
-          }}
-        >
-          {children}
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="right" className="text-[11px]">
-        {label}
-      </TooltipContent>
-    </Tooltip>
-  );
+function useTabVisible(): boolean {
+  const [v, setV] = useState(true);
+  useEffect(() => {
+    const on = () => setV(document.visibilityState === "visible");
+    on();
+    document.addEventListener("visibilitychange", on);
+    return () => document.removeEventListener("visibilitychange", on);
+  }, []);
+  return v;
 }
 
 export default function ScenarioCanvas({
@@ -497,46 +98,42 @@ export default function ScenarioCanvas({
   groups,
   selectedId,
   onNodeClick,
-  defaultTilt = false, // 2D first; the 3D tilt stays one "T" away
+  live = false,
+  dockOpen = false,
+  runStats,
+  onZoomChange,
+  entrance = true,
 }: {
   modules: ModuleInfo[];
   connections: Connection[];
   groups?: UnifiedGroup[];
   selectedId?: NodeId | null;
   onNodeClick?: (moduleId: NodeId) => void;
-  defaultTilt?: boolean;
+  /** Workflow is active and ran recently → pulses along sequence edges. */
+  live?: boolean;
+  /** A right dock is open: fit leaves room for it. */
+  dockOpen?: boolean;
+  /** Optional per-step run line, keyed by node id. */
+  runStats?: Record<string, RunStat>;
+  onZoomChange?: (zoom: number) => void;
+  /** Stagger the nodes in on first paint. */
+  entrance?: boolean;
 }) {
-  const [cam, setCam] = useState({ zoom: 0.5, panX: 0, panY: 0 });
+  const [cam, setCam] = useState({ zoom: 0.8, panX: 0, panY: 0 });
   const [drag, setDrag] = useState(false);
   const [glide, setGlide] = useState(false);
-  const [tilt, setTilt] = useState(defaultTilt);
-  const [dragId, setDragId] = useState<NodeId | null>(null);
-  const [pos, setPos] = useState<Record<NodeId, { cx: number; cy: number }>>({});
+  const [settled, setSettled] = useState(false);
+  const reduced = usePrefersReducedMotion();
+  const visible = useTabVisible();
 
   const vp = useRef<HTMLDivElement | null>(null);
-  const panData = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
+  const panData = useRef<{ sx: number; sy: number; px: number; py: number; moved: boolean } | null>(null);
   const vel = useRef({ x: 0, y: 0 });
   const last = useRef({ x: 0, y: 0, t: 0 });
   const raf = useRef(0);
-  const nd = useRef<{
-    id: NodeId;
-    sx: number;
-    sy: number;
-    cx: number;
-    cy: number;
-    moved: boolean;
-  } | null>(null);
-  const tiltRef = useRef(tilt);
-  useEffect(() => {
-    tiltRef.current = tilt;
-  }, [tilt]);
+  const pressed = useRef<{ id: NodeId; sx: number; sy: number; moved: boolean } | null>(null);
 
-  const layout = useMemo(
-    () => computeLayout(modules, connections, groups),
-    [modules, connections, groups]
-  );
-  const ox = layout.w / 2;
-  const oy = layout.h / 2;
+  const layout = useMemo(() => computeLayout(modules, connections, groups), [modules, connections, groups]);
 
   const nodes: CanvasNode[] = useMemo(
     () =>
@@ -546,11 +143,11 @@ export default function ScenarioCanvas({
           cy: MARGIN_Y + Math.floor(i / 4) * ROW_H,
           col: 0,
         };
-        const o = pos[m.id];
+        const rs = runStats?.[String(m.id)];
         return {
           id: m.id,
-          cx: o ? o.cx : base.cx,
-          cy: o ? o.cy : base.cy,
+          cx: base.cx,
+          cy: base.cy,
           col: base.col,
           label: m.label || m.module,
           app: m.app || m.module,
@@ -568,19 +165,14 @@ export default function ScenarioCanvas({
           issueText: m.issues?.map((i) => i.message).join(" · ") ?? null,
           changed: m.changed,
           commentCount: m.commentCount,
+          runLine: rs ? { text: rs.text, failing: !!rs.failing } : null,
         };
       }),
-    [modules, layout, pos]
+    [modules, layout, runStats]
   );
 
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
-
-  /* Lite mode: past ~120 nodes the per-frame animation stack (pulse comets,
-     drift dashes, floaty idle) dominates render time. Drop it and keep the
-     interactions — pan/zoom/click stay identical. */
-  const lite = nodes.length > 120;
-
-  const cycle = layout.maxCol * 0.65 + 2.2;
+  const lite = nodes.length > LITE_AT;
 
   const edges: EdgeView[] = useMemo(
     () =>
@@ -589,37 +181,25 @@ export default function ScenarioCanvas({
         .map((c, i) => {
           const a = byId.get(c.from)!;
           const b = byId.get(c.to)!;
-          const flip = b.cx < a.cx ? -1 : 1;
-          const sx = a.cx + 38 * flip;
-          const sy = a.cy;
-          const tx = b.cx - 38 * flip;
-          const ty = b.cy;
-          const dx = Math.max(48, Math.min(130, Math.abs(tx - sx) / 2)) * flip;
           // midpoint of the cubic at t = .5 for the label pill
-          const mx = (sx + 3 * (sx + dx) + 3 * (tx - dx) + tx) / 8;
-          const my = (sy + 3 * sy + 3 * ty + ty) / 8;
-          const t0 = a.col * 0.65;
+          const mx = (a.cx + b.cx) / 2;
+          const my = (a.cy + b.cy) / 2;
           return {
             key: i,
-            d: `M${sx} ${sy} C${sx + dx} ${sy}, ${tx - dx} ${ty}, ${tx} ${ty}`,
+            d: edgePath(a.cx, a.cy, b.cx, b.cy),
             label: c.label,
             kind: c.kind,
             status: c.status,
             mx,
             my,
-            t0,
-            t1: t0 + 0.75,
+            seq: !NON_LAYOUT_KINDS.has(c.kind ?? "") && a.kind !== "portal" && b.kind !== "portal",
           };
         }),
     [connections, byId]
   );
 
-  /* Loop back-edges and cross-system edges don't carry pulses — their
-     t-slots are keyed to columns within a single flow. */
-  const pulseEdges = useMemo(
-    () => edges.filter((e) => !NON_LAYOUT_KINDS.has(e.kind ?? "")),
-    [edges]
-  );
+  const pulseEdges = useMemo(() => edges.filter((e) => e.seq).slice(0, PULSE_CAP), [edges]);
+  const showPulses = live && visible && !reduced && !lite && pulseEdges.length > 0;
 
   /* ---------- camera ---------- */
 
@@ -627,95 +207,96 @@ export default function ScenarioCanvas({
     const el = vp.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    const isTilt = tiltRef.current;
-    /* Projected size of the w×h content box under rotateZ45+rotateX55 */
-    const pw = isTilt ? (layout.w + layout.h) / SQRT2 + 100 : layout.w;
-    const ph = isTilt ? ((layout.w + layout.h) / SQRT2) * COS_TILT + 180 : layout.h;
-    const pad = 70;
-    /* Never fit below 0.4 zoom — a huge graph should stay readable and be
-       panned, not shrink into confetti. */
-    const z = Math.max(
-      0.4,
-      Math.min((r.width - pad * 2) / pw, (r.height - pad * 2) / ph, 1.1)
-    );
-    /* Topmost projected point of the content box (keeps tall graphs from
-       centering their top edge off screen). */
-    const topY = isTilt
-      ? oy - ((layout.w + layout.h) / (2 * SQRT2)) * COS_TILT
-      : 0;
+    if (r.width === 0 || r.height === 0) return;
+    const availW = r.width - (dockOpen ? 330 : 50);
+    const availH = r.height - 70;
+    const z = Math.max(FIT_MIN, Math.min(FIT_MAX, availW / layout.w, availH / layout.h));
+    const cw = layout.w * z;
+    const ch = layout.h * z;
+    // Centre when it fits; otherwise anchor top-left with a margin so the
+    // first column is on screen and the rest is one drag away.
+    const panX = cw <= availW ? (availW - cw) / 2 + 10 : 10;
+    const panY = ch <= availH ? (availH - ch) / 2 + 10 : 10;
     setGlide(false);
-    setCam({
-      zoom: z,
-      panX: r.width / 2 - ox * z,
-      panY: Math.max(
-        r.height / 2 - oy * z - (isTilt ? 30 * z : 0),
-        66 - topY * z
-      ),
-    });
-  }, [layout, ox, oy]);
+    setCam({ zoom: z, panX, panY });
+  }, [layout, dockOpen]);
 
   const fitRef = useRef(fit);
   useEffect(() => {
     fitRef.current = fit;
   }, [fit]);
 
+  // Fit on mount, on layout change, and on viewport resize (rAF-debounced).
+  useEffect(() => {
+    const el = vp.current;
+    if (!el) return;
+    let frame = 0;
+    const run = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        fitRef.current();
+        setSettled(true);
+      });
+    };
+    run();
+    const ro = new ResizeObserver(run);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, [layout, dockOpen]);
+
+  useEffect(() => {
+    onZoomChange?.(cam.zoom);
+  }, [cam.zoom, onZoomChange]);
+
   const centerOn = useCallback(
     (id: NodeId) => {
       const el = vp.current;
-      if (!el) return;
       const n = byId.get(id);
-      if (!n) return;
+      if (!el || !n) return;
       const r = el.getBoundingClientRect();
-      const P = CENTER_INSETS;
       const z = cam.zoom;
-      const dx = n.cx - ox;
-      const dy = n.cy - oy;
-      let wx: number, wy: number;
-      if (tiltRef.current) {
-        wx = ox + (dx - dy) / SQRT2;
-        wy = oy + ((dx + dy) / SQRT2) * COS_TILT;
-      } else {
-        wx = n.cx;
-        wy = n.cy;
-      }
-      const cx = P.left + (r.width - P.left - P.right) / 2;
-      const cy = P.top + (r.height - P.top - P.bottom) / 2;
+      const right = dockOpen ? 330 : 20;
+      const cx = 20 + (r.width - 20 - right) / 2;
+      const cy = 40 + (r.height - 60) / 2;
+      // Only move when the node is outside the comfortable box.
+      const sx = n.cx * z + cam.panX;
+      const sy = n.cy * z + cam.panY;
+      const inside = sx > 100 && sx < r.width - right - 80 && sy > 70 && sy < r.height - 70;
+      if (inside) return;
       setGlide(false);
-      setCam((c) => ({ ...c, panX: cx - z * wx, panY: cy - z * wy }));
+      setCam((c) => ({ ...c, panX: cx - z * n.cx, panY: cy - z * n.cy }));
     },
-    [byId, cam.zoom, ox, oy]
+    [byId, cam.zoom, cam.panX, cam.panY, dockOpen]
   );
 
   const zoomBy = useCallback((f: number, ax?: number, ay?: number) => {
     setCam((c) => {
-      const z = Math.min(1.8, Math.max(0.15, c.zoom * f));
+      const z = Math.min(1.8, Math.max(0.25, c.zoom * f));
       const el = vp.current;
       if (!el) return { ...c, zoom: z };
       const r = el.getBoundingClientRect();
       const cx = ax ?? r.width / 2;
       const cy = ay ?? r.height / 2;
-      return {
-        zoom: z,
-        panX: cx - ((cx - c.panX) * z) / c.zoom,
-        panY: cy - ((cy - c.panY) * z) / c.zoom,
-      };
+      return { zoom: z, panX: cx - ((cx - c.panX) * z) / c.zoom, panY: cy - ((cy - c.panY) * z) / c.zoom };
     });
   }, []);
 
-  /* Initial camera settle (glides from the zoomed-out start to the fit) */
-  useEffect(() => {
-    const t = setTimeout(() => fitRef.current(), 60);
-    return () => clearTimeout(t);
-  }, []);
-
-  /* Wheel: zoom toward cursor (non-passive so page scroll never fires) */
+  /* Wheel: zoom toward cursor with ⌘/ctrl or pinch; plain wheel pans. */
   useEffect(() => {
     const el = vp.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      const r = el.getBoundingClientRect();
-      zoomBy(e.deltaY < 0 ? 1.08 : 0.92, e.clientX - r.left, e.clientY - r.top);
+      if (e.ctrlKey || e.metaKey) {
+        const r = el.getBoundingClientRect();
+        zoomBy(e.deltaY < 0 ? 1.08 : 0.92, e.clientX - r.left, e.clientY - r.top);
+      } else {
+        setGlide(false);
+        setCam((c) => ({ ...c, panX: c.panX - e.deltaX, panY: c.panY - e.deltaY }));
+      }
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
@@ -728,48 +309,40 @@ export default function ScenarioCanvas({
   const panDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
     cancelAnimationFrame(raf.current);
-    panData.current = {
-      sx: e.clientX,
-      sy: e.clientY,
-      px: cam.panX,
-      py: cam.panY,
-    };
+    panData.current = { sx: e.clientX, sy: e.clientY, px: cam.panX, py: cam.panY, moved: false };
     vel.current = { x: 0, y: 0 };
     last.current = { x: e.clientX, y: e.clientY, t: performance.now() };
-    setDrag(true);
     setGlide(false);
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     } catch {}
   };
-
   const panMove = (e: React.PointerEvent) => {
     const d = panData.current;
     if (!d) return;
+    if (!d.moved && Math.abs(e.clientX - d.sx) + Math.abs(e.clientY - d.sy) < 3) return;
+    if (!d.moved) {
+      d.moved = true;
+      setDrag(true);
+    }
     const now = performance.now();
     const dt = Math.max(1, now - last.current.t);
-    vel.current = {
-      x: ((e.clientX - last.current.x) / dt) * 16,
-      y: ((e.clientY - last.current.y) / dt) * 16,
-    };
+    vel.current = { x: ((e.clientX - last.current.x) / dt) * 16, y: ((e.clientY - last.current.y) / dt) * 16 };
     last.current = { x: e.clientX, y: e.clientY, t: now };
-    setCam((c) => ({
-      ...c,
-      panX: d.px + e.clientX - d.sx,
-      panY: d.py + e.clientY - d.sy,
-    }));
+    setCam((c) => ({ ...c, panX: d.px + e.clientX - d.sx, panY: d.py + e.clientY - d.sy }));
   };
-
   const panUp = () => {
-    if (!panData.current) return;
+    const d = panData.current;
     panData.current = null;
+    if (!d) return;
     setDrag(false);
+    if (!d.moved) return;
     const v = { ...vel.current };
     if (Math.abs(v.x) + Math.abs(v.y) > 2) {
       setGlide(true);
       const step = () => {
-        v.x *= 0.93;
-        v.y *= 0.93;
+        v.x *= 0.92;
+        v.y *= 0.92;
         if (Math.abs(v.x) + Math.abs(v.y) < 0.4) {
           setGlide(false);
           return;
@@ -781,80 +354,39 @@ export default function ScenarioCanvas({
     }
   };
 
-  /* ---------- node drag / select ---------- */
+  /* ---------- node press (click vs. pan) ---------- */
 
+  // Node presses must not bubble to the viewport: its own pointerdown would
+  // re-capture the pointer and swallow the click. The node captures instead,
+  // and a press that travels becomes a pan.
   const nodeDown = (e: React.PointerEvent, n: CanvasNode) => {
-    e.stopPropagation();
     if (e.button !== 0) return;
-    nd.current = {
-      id: n.id,
-      sx: e.clientX,
-      sy: e.clientY,
-      cx: n.cx,
-      cy: n.cy,
-      moved: false,
-    };
-    try {
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    } catch {}
+    e.stopPropagation();
+    pressed.current = { id: n.id, sx: e.clientX, sy: e.clientY, moved: false };
+    panDown(e);
   };
-
   const nodeMove = (e: React.PointerEvent) => {
-    const d = nd.current;
-    if (!d) return;
-    const dxs = e.clientX - d.sx;
-    const dys = e.clientY - d.sy;
-    if (!d.moved && Math.abs(dxs) + Math.abs(dys) > 4) {
-      d.moved = true;
-      setDragId(d.id);
+    e.stopPropagation();
+    const p = pressed.current;
+    if (p && !p.moved && Math.abs(e.clientX - p.sx) + Math.abs(e.clientY - p.sy) > 4) p.moved = true;
+    panMove(e);
+  };
+  const nodeUp = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    const p = pressed.current;
+    pressed.current = null;
+    panUp();
+    if (p && !p.moved) {
+      onNodeClick?.(p.id);
+      centerOn(p.id);
     }
-    if (!d.moved) return;
-    const z = cam.zoom;
-    let px: number, py: number;
-    if (tiltRef.current) {
-      /* screen → plane deltas (handoff 3D math) */
-      const u = dxs / z;
-      const v = dys / (z * COS_TILT);
-      px = (u + v) / SQRT2;
-      py = (v - u) / SQRT2;
-    } else {
-      px = dxs / z;
-      py = dys / z;
-    }
-    setPos((p) => ({
-      ...p,
-      [d.id]: { cx: d.cx + px, cy: d.cy + py },
-    }));
   };
 
-  const nodeUp = () => {
-    const d = nd.current;
-    nd.current = null;
-    if (!d) return;
-    if (!d.moved) {
-      onNodeClick?.(d.id);
-      centerOn(d.id);
-    }
-    setDragId(null);
-  };
-
-  const toggle3d = useCallback(() => {
-    const next = !tiltRef.current;
-    tiltRef.current = next;
-    setTilt(next);
-    setTimeout(() => fitRef.current(), 20);
-  }, []);
-
-  /* ---------- keyboard access ----------
-     Shortcuts are scoped to the canvas container (focus-within), not the
-     window — bare letters on window conflict with screen-reader browse mode
-     and any focused control elsewhere on the page. Nodes use a roving
-     tabindex: one node is tabbable, arrows move focus along the flow. */
+  /* ---------- keyboard ---------- */
 
   const [focusId, setFocusId] = useState<NodeId | null>(null);
   const nodeEls = useRef(new Map<NodeId, HTMLDivElement>());
-  const tabTarget =
-    focusId != null && byId.has(focusId) ? focusId : nodes[0]?.id;
+  const tabTarget = focusId != null && byId.has(focusId) ? focusId : nodes[0]?.id;
 
   const focusNodeAt = useCallback(
     (index: number) => {
@@ -891,71 +423,53 @@ export default function ScenarioCanvas({
   const canvasKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || e.metaKey || e.ctrlKey)
-        return;
+      if (tag === "INPUT" || tag === "TEXTAREA" || e.metaKey || e.ctrlKey) return;
       if (e.key === "+" || e.key === "=") zoomBy(1.2);
       else if (e.key === "-" || e.key === "_") zoomBy(0.83);
       else if (e.key === "f" || e.key === "F") fitRef.current();
-      else if (e.key === "t" || e.key === "T") toggle3d();
-      else if (
-        e.target === vp.current &&
-        (e.key === "ArrowRight" ||
-          e.key === "ArrowLeft" ||
-          e.key === "ArrowUp" ||
-          e.key === "ArrowDown")
-      ) {
-        // arrows pan when the viewport itself (not a node) is focused
+      else if (e.target === vp.current && (e.key === "ArrowRight" || e.key === "ArrowLeft" || e.key === "ArrowUp" || e.key === "ArrowDown")) {
         e.preventDefault();
         const step = e.shiftKey ? 180 : 60;
-        const dx =
-          e.key === "ArrowRight" ? -step : e.key === "ArrowLeft" ? step : 0;
-        const dy =
-          e.key === "ArrowDown" ? -step : e.key === "ArrowUp" ? step : 0;
+        const dx = e.key === "ArrowRight" ? -step : e.key === "ArrowLeft" ? step : 0;
+        const dy = e.key === "ArrowDown" ? -step : e.key === "ArrowUp" ? step : 0;
         setGlide(false);
         setCam((c) => ({ ...c, panX: c.panX + dx, panY: c.panY + dy }));
       }
     },
-    [zoomBy, toggle3d]
+    [zoomBy]
   );
 
-  // Programmatic selection (palette / search / ?node= deep link) also
-  // brings the node into view — clicks already center via DOM focus.
+  // Programmatic selection (palette / search / ?step= deep link) brings the
+  // node into view.
   useEffect(() => {
     if (selectedId != null) centerOn(selectedId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
-  const nodeAriaLabel = useCallback(
-    (n: CanvasNode) => {
-      if (n.kind === "portal") {
-        const target = isProviderId(n.app)
-          ? CONNECTORS[n.app].label
-          : appName(n.app);
-        return `Open connected workflow ${n.label} in ${target}${
-          n.badge === "deadLink" ? " (link broken)" : ""
-        }`;
-      }
-      const parts = [n.label];
-      if (n.summary && n.summary !== n.label) parts.push(n.summary);
-      else parts.push(appName(n.app));
-      if (n.ordinal) parts.push(`step ${n.ordinal}`);
-      if (n.kind === "trigger") parts.push("trigger");
-      if (n.kind === "wait" && n.waitText) parts.push(n.waitText);
-      if (n.issueText) parts.push(`issue: ${n.issueText}`);
-      if (n.changed) parts.push("changed since you last looked");
-      if (n.commentCount) parts.push(`${n.commentCount} open comment thread${n.commentCount === 1 ? "" : "s"}`);
-      if (n.hasFilter) parts.push(n.filterName ? `filtered: ${n.filterName}` : "filtered");
-      if (n.hasErrorHandler) parts.push("has error handler");
-      if (n.badge) {
-        const tip = badgeTooltip(n.badge);
-        if (tip) parts.push(tip);
-      }
-      return parts.join(", ");
-    },
-    []
-  );
+  const nodeAriaLabel = useCallback((n: CanvasNode) => {
+    if (n.kind === "portal") {
+      const target = isProviderId(n.app) ? CONNECTORS[n.app].label : appName(n.app);
+      return `Open connected workflow ${n.label} in ${target}${n.badge === "deadLink" ? " (link broken)" : ""}`;
+    }
+    const parts = [n.label];
+    if (n.summary && n.summary !== n.label) parts.push(n.summary);
+    else parts.push(appName(n.app));
+    if (n.ordinal) parts.push(`step ${n.ordinal}`);
+    if (n.kind === "trigger") parts.push("trigger");
+    if (n.kind === "wait" && n.waitText) parts.push(n.waitText);
+    if (n.issueText) parts.push(`issue: ${n.issueText}`);
+    if (n.changed) parts.push("changed since you last looked");
+    if (n.commentCount) parts.push(`${n.commentCount} open comment thread${n.commentCount === 1 ? "" : "s"}`);
+    if (n.hasFilter) parts.push(n.filterName ? `filtered: ${n.filterName}` : "filtered");
+    if (n.hasErrorHandler) parts.push("has error handler");
+    if (n.runLine) parts.push(n.runLine.text);
+    if (n.badge) {
+      const tip = badgeTooltip(n.badge);
+      if (tip) parts.push(tip);
+    }
+    return parts.join(", ");
+  }, []);
 
-  /* Adjacency labels for the screen-reader structure list. */
   const srAdjacency = useMemo(() => {
     const map = new Map<NodeId, string[]>();
     for (const c of connections) {
@@ -968,21 +482,11 @@ export default function ScenarioCanvas({
     return map;
   }, [connections, byId]);
 
-  const worldTrans =
-    drag || glide ? "transform 0s" : "transform .55s cubic-bezier(.22,1,.36,1)";
-  const tiltT = tilt ? "rotateX(55deg) rotateZ(45deg)" : "none";
-  /* The trailing translateZ lifts each billboard toward the camera so the
-     tilted plane can't clip it (true 3D intersection inside preserve-3d). */
-  const billT = tilt
-    ? "rotateZ(-45deg) rotateX(-55deg) translateZ(110px)"
-    : "none";
+  const worldTrans = drag || glide || !settled ? "transform 0s" : "transform .45s var(--ease-out)";
+  const enter = entrance && !lite && !reduced;
 
   return (
-    <div
-      data-canvas-3d
-      className="absolute inset-0 overflow-hidden bg-vpbg"
-      onKeyDown={canvasKeyDown}
-    >
+    <div className="absolute inset-0 overflow-hidden bg-plane" onKeyDown={canvasKeyDown}>
       {/* screen-reader alternative: the flow as a structured list */}
       <div className="sr-only">
         <h2>Workflow structure</h2>
@@ -999,75 +503,43 @@ export default function ScenarioCanvas({
         </ol>
       </div>
 
-      {/* viewport — the pan/zoom surface. The zoom cluster lives OUTSIDE
-          this element: its pointer capture would otherwise swallow button
-          clicks, and backdrop-filter inside a perspective context makes
-          Chrome flicker. */}
+      {/* viewport — the pan/zoom surface; dot grid moves with the camera */}
       <div
         ref={vp}
         onPointerDown={panDown}
         onPointerMove={panMove}
         onPointerUp={panUp}
+        onPointerCancel={panUp}
         tabIndex={0}
         role="group"
-        aria-label="Workflow canvas. Tab to reach steps, arrow keys to move between them, Enter to open details. With the canvas itself focused, arrow keys pan and plus or minus zoom."
-        className="absolute inset-0"
+        aria-label="Workflow canvas. Tab to reach steps, arrow keys to move between them, Enter to open details. With the canvas itself focused, arrow keys pan and plus or minus zoom; F fits."
+        className="absolute inset-0 outline-none"
         style={{
           cursor: drag ? "grabbing" : "grab",
           touchAction: "none",
-          perspective: "1800px",
-          perspectiveOrigin: "50% 38%",
+          backgroundImage: "radial-gradient(var(--dot) 1.2px, transparent 1.6px)",
+          backgroundSize: `${24 * cam.zoom}px ${24 * cam.zoom}px`,
+          backgroundPosition: `${cam.panX}px ${cam.panY}px`,
+          opacity: settled ? 1 : 0,
+          transition: "opacity .2s var(--ease-out)",
         }}
       >
-        {/* world */}
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 0,
-          width: layout.w,
-          height: layout.h,
-          transform: `translate(${cam.panX}px, ${cam.panY}px) scale(${cam.zoom})`,
-          transition: worldTrans,
-          transformOrigin: "0 0",
-          transformStyle: "preserve-3d",
-        }}
-      >
-        {/* infinite dot-grid plane (kept at the monitor's 8000×6000 — larger
-            layers exceed GPU texture limits at 2x DPR and shimmer) */}
         <div
           style={{
             position: "absolute",
-            left: ox - 4000,
-            top: oy - 3000,
-            width: 8000,
-            height: 6000,
-            backgroundColor: "var(--plane)",
-            backgroundImage:
-              "radial-gradient(var(--dot) 1.2px, transparent 1.6px)",
-            backgroundSize: "24px 24px",
-            transform: tiltT,
-            transformOrigin: "4000px 3000px",
+            left: 0,
+            top: 0,
+            width: layout.w,
+            height: layout.h,
+            transform: `translate(${cam.panX}px, ${cam.panY}px) scale(${cam.zoom})`,
             transition: worldTrans,
-            pointerEvents: "none",
-          }}
-          aria-hidden="true"
-        />
-
-        {/* content layer (tilted with the plane) */}
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            transform: tiltT,
-            transformOrigin: `${ox}px ${oy}px`,
-            transition: worldTrans,
-            transformStyle: "preserve-3d",
+            transformOrigin: "0 0",
+            willChange: "transform",
           }}
         >
-          {/* group containers — behind everything, on the plane */}
+          {/* group containers — behind everything */}
           {layout.groupBoxes.map((g) => (
-            <div key={g.id}>
+            <div key={g.id} aria-hidden="true">
               <div
                 className="absolute rounded-card border"
                 style={{
@@ -1076,151 +548,80 @@ export default function ScenarioCanvas({
                   width: g.w,
                   height: g.h,
                   borderColor: "var(--line)",
-                  background:
-                    "color-mix(in srgb, var(--panel) 40%, transparent)",
+                  background: "color-mix(in srgb, var(--panel) 40%, transparent)",
                 }}
               />
-              {/* label chip — billboarded so it faces the camera in 3D */}
-              <div
-                className="pointer-events-none absolute"
-                style={{
-                  left: g.x + 18,
-                  top: g.y + 2,
-                  transformStyle: "preserve-3d",
-                }}
-              >
-                <div
-                  style={{
-                    transform: billT,
-                    transformOrigin: "0 0",
-                    transition: worldTrans,
-                  }}
-                >
-                  <div className="flex -translate-y-1/2 items-center gap-2 rounded-full border border-line bg-pill px-3 py-[5px] shadow-[0_4px_14px_var(--shade)]">
-                    <span
-                      aria-hidden="true"
-                      className="size-[8px] flex-none rounded-[2px]"
-                      style={{ background: providerColor(g.source) }}
-                    />
-                    <span className="max-w-[240px] truncate text-[11px] font-semibold text-t1">
-                      {g.name}
-                    </span>
-                    <span className="font-mono text-[9px] font-semibold uppercase tracking-wide text-t3">
-                      {CONNECTORS[g.source].shortLabel}
-                    </span>
-                  </div>
-                </div>
+              <div className="pointer-events-none absolute flex -translate-y-1/2 items-center gap-2 rounded-full border border-line bg-pill px-2.5 py-[4px] shadow-[var(--shadow-card)]" style={{ left: g.x + 14, top: g.y }}>
+                <span className="size-[7px] flex-none rounded-[2px]" style={{ background: providerColor(g.source) }} />
+                <span className="max-w-[240px] truncate text-[10.5px] font-semibold text-t1">{g.name}</span>
+                <span className="font-mono text-[8.5px] font-semibold uppercase tracking-wide text-t3">{CONNECTORS[g.source].shortLabel}</span>
               </div>
             </div>
           ))}
 
           {/* edges */}
-          <svg
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0"
-            style={{ overflow: "visible" }}
-            width={1}
-            height={1}
-          >
+          <svg aria-hidden="true" className="pointer-events-none absolute inset-0" style={{ overflow: "visible" }} width={1} height={1}>
             {edges.map((e) => {
               const isGoto = e.kind === "goto";
               const isCross = CROSS_KINDS.has(e.kind ?? "");
               const isAsset = ASSET_KINDS.has(e.kind ?? "");
               const isDead = e.status === "dead";
-              const stroke = isAsset
-                ? "var(--t3)"
-                : isCross
-                  ? isDead
-                    ? "var(--err)"
-                    : "var(--warn)"
-                  : "var(--edge)";
+              const stroke = isAsset ? "var(--t3)" : isCross ? (isDead ? "var(--err)" : "var(--warn)") : "var(--edge)";
               return (
-                <g key={e.key} opacity={isGoto ? 0.55 : isAsset ? 0.8 : 1}>
-                  <path
-                    d={e.d}
-                    fill="none"
-                    stroke={stroke}
-                    strokeWidth={isCross ? 2 : 1.5}
-                    strokeDasharray={
-                      isGoto ? "6 6" : isCross ? "8 6" : isAsset ? "2 5" : undefined
-                    }
-                  />
-                  {!lite && !isGoto && !isCross && !isAsset && (
-                    <path
-                      d={e.d}
-                      fill="none"
-                      stroke="var(--driftc)"
-                      strokeWidth={1.5}
-                      strokeLinecap="round"
-                      strokeDasharray="3 23"
-                      style={{ animation: "ddrift 1.5s linear infinite" }}
-                    />
-                  )}
-                </g>
+                <path
+                  key={e.key}
+                  d={e.d}
+                  fill="none"
+                  stroke={stroke}
+                  strokeWidth={isCross ? 1.75 : 1.5}
+                  opacity={isGoto ? 0.55 : isAsset ? 0.8 : 1}
+                  strokeDasharray={isGoto ? "6 6" : isCross ? "7 6" : isAsset ? "2 5" : undefined}
+                  className={isCross && !lite && !reduced ? "edge-drift" : undefined}
+                />
               );
             })}
+            {showPulses &&
+              pulseEdges.map((e, i) => (
+                <circle key={`p${e.key}`} r={2.3} fill="var(--t1)" opacity={0.9}>
+                  <animateMotion dur="2.4s" repeatCount="indefinite" begin={`${(i * 0.35).toFixed(2)}s`} path={e.d} />
+                </circle>
+              ))}
           </svg>
 
-          {!lite && <PulseLayer edges={pulseEdges} cycle={cycle} />}
-
-          {/* edge label pills — billboarded so text stays face-on in 3D */}
+          {/* edge label pills */}
           {edges
             .filter((e) => e.label)
             .map((e) => {
               const isCross = CROSS_KINDS.has(e.kind ?? "");
               const isDead = e.status === "dead";
-              const crossColor = isDead ? "var(--err-text)" : "var(--warn-text)";
-              const crossAccent = isDead ? "var(--err)" : "var(--warn)";
+              const accent = isDead ? "var(--err)" : "var(--warn)";
               return (
                 <div
                   key={`l${e.key}`}
-                  className="pointer-events-none absolute"
+                  className="pointer-events-none absolute max-w-[180px] -translate-x-1/2 -translate-y-1/2 truncate rounded-full border px-2 py-[2px] text-[9.5px] font-semibold shadow-[var(--shadow-card)]"
                   style={{
                     left: e.mx,
                     top: e.my,
-                    transformStyle: "preserve-3d",
+                    ...(isCross
+                      ? { color: isDead ? "var(--err-text)" : "var(--warn-text)", borderColor: `color-mix(in srgb, ${accent} 40%, transparent)`, background: `color-mix(in srgb, ${accent} 12%, var(--pill))` }
+                      : { color: "var(--t2)", borderColor: "var(--line)", background: "var(--pill)" }),
                   }}
                 >
-                  <div
-                    style={{
-                      transform: billT,
-                      transformOrigin: "0 0",
-                      transition: worldTrans,
-                    }}
-                  >
-                    <div
-                      className="max-w-[180px] -translate-x-1/2 -translate-y-1/2 truncate rounded-full border px-2.5 py-[3px] text-[10px] font-semibold shadow-[0_4px_14px_var(--shade)]"
-                      style={
-                        isCross
-                          ? {
-                              color: crossColor,
-                              borderColor: `color-mix(in srgb, ${crossAccent} 40%, transparent)`,
-                              background: `color-mix(in srgb, ${crossAccent} 12%, var(--pill))`,
-                            }
-                          : {
-                              color: "var(--t2)",
-                              borderColor: "var(--line)",
-                              background: "var(--pill)",
-                            }
-                      }
-                    >
-                      {isDead ? `! ${e.label}` : e.label}
-                    </div>
-                  </div>
+                  {isDead ? `! ${e.label}` : e.label}
                 </div>
               );
             })}
 
-          {/* pucks */}
+          {/* nodes */}
           {nodes.map((n, i) => {
             const selected = selectedId === n.id;
-            const dragging = dragId === n.id;
+            const delay = enter ? `${(Math.min(i, 30) * 0.035).toFixed(3)}s` : "0s";
 
-            /* Portal chip — a clickable doorway to a connected workflow. */
             if (n.kind === "portal") {
               const dead = n.badge === "deadLink";
-              const accent = dead ? "var(--err-text)" : "var(--warn-text)";
-              const accentGraphic = dead ? "var(--err)" : "var(--warn)";
+              const accent = dead ? "var(--err)" : "var(--warn)";
+              const text = dead ? "var(--err-text)" : "var(--warn-text)";
+              const provider = isProviderId(n.app) ? CONNECTORS[n.app].shortLabel : appName(n.app);
               return (
                 <div
                   key={n.id}
@@ -1239,86 +640,36 @@ export default function ScenarioCanvas({
                   role="button"
                   tabIndex={tabTarget === n.id ? 0 : -1}
                   aria-label={nodeAriaLabel(n)}
+                  title={dead ? "Dead link — target hook gone" : `Opens ${n.label}`}
+                  className="group/portal absolute flex w-[160px] cursor-pointer flex-col items-center gap-[3px] outline-none focus-visible:[&>span:first-child]:ring-2 focus-visible:[&>span:first-child]:ring-[var(--ringc)]"
                   style={{
-                    position: "absolute",
-                    left: n.cx - NODE_HALF,
-                    top: n.cy - 32,
-                    width: 140,
-                    cursor: "pointer",
+                    left: n.cx - 80,
+                    top: n.cy - 18,
                     touchAction: "none",
-                    transformStyle: "preserve-3d",
+                    animation: enter ? `fadeUp .4s var(--ease-out) .4s both` : undefined,
                   }}
                 >
-                  <div
+                  <span
+                    className="flex max-w-[160px] items-center gap-1.5 rounded-full border-2 px-[11px] py-[5px] text-[10.5px] font-bold backdrop-blur-[8px] transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] group-hover/portal:-translate-y-[2px]"
                     style={{
-                      transform: billT,
-                      transformOrigin: "70px 32px",
-                      transition: worldTrans,
-                      animation: `fadeIn .6s ease ${(0.3 + Math.min(i, 12) * 0.06).toFixed(2)}s both`,
+                      borderColor: accent,
+                      background: `color-mix(in srgb, ${accent} 12%, var(--glass))`,
+                      color: text,
+                      boxShadow: `0 4px 12px var(--shade)${selected ? ", 0 0 0 2.5px var(--ringc)" : ""}`,
                     }}
                   >
-                    <motion.div
-                      whileHover={{ scale: 1.07, y: -3 }}
-                      whileTap={{ scale: 0.96 }}
-                      transition={{ duration: 0.18, ease: POP_EASE }}
-                      className="flex flex-col items-center gap-1.5"
-                    >
-                      <div
-                        className="flex items-center gap-2 rounded-full border-2 px-3.5 py-2 backdrop-blur-[8px]"
-                        style={{
-                          borderColor: accentGraphic,
-                          background: `color-mix(in srgb, ${accentGraphic} 12%, var(--glass))`,
-                          boxShadow: `0 4px 14px var(--shade), 0 0 14px color-mix(in srgb, ${accentGraphic} 30%, transparent)${
-                            selected || dragging
-                              ? `, 0 0 0 2.5px var(--ringc)`
-                              : ""
-                          }`,
-                        }}
-                      >
-                        <span
-                          className="text-[13px] font-bold leading-none"
-                          style={{ color: accent }}
-                        >
-                          ↗
-                        </span>
-                        <span
-                          className="max-w-[150px] truncate text-[11.5px] font-semibold"
-                          style={{ color: accent }}
-                        >
-                          {n.label}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-[9.5px] font-semibold uppercase tracking-wide text-t3">
-                        <span
-                          aria-hidden="true"
-                          className="size-[6px] rounded-[2px]"
-                          style={{
-                            background: isProviderId(n.app)
-                              ? providerColor(n.app)
-                              : appColor(n.app),
-                          }}
-                        />
-                        {isProviderId(n.app)
-                          ? CONNECTORS[n.app].shortLabel
-                          : appName(n.app)}
-                        {dead && (
-                          <span className="text-err-text">· broken</span>
-                        )}
-                        <span className="normal-case text-t3">· open</span>
-                      </div>
-                    </motion.div>
-                  </div>
+                    <span aria-hidden="true">↗</span>
+                    <span className="truncate">{n.label}</span>
+                  </span>
+                  <span className="text-[8.5px] font-semibold uppercase tracking-[.04em] text-t3">
+                    {provider}
+                    {dead ? " · broken" : ""}
+                  </span>
                 </div>
               );
             }
-            const tileShadow =
-              (selected || dragging ? `0 0 0 2.5px var(--ringc), ` : "") +
-              `0 5px 0 color-mix(in oklab, ${n.color} 55%, #000000), 0 12px 22px var(--ambient), 0 6px 16px color-mix(in srgb, ${n.color} 20%, transparent)`;
-            const pop = dragging
-              ? { scale: 1.14, y: -6 }
-              : selected
-                ? { scale: 1.07, y: -3 }
-                : { scale: 1, y: 0 };
+
+            const second = n.kind === "wait" && n.waitText ? n.waitText : n.summary && n.summary !== n.label ? n.summary : appName(n.app);
             return (
               <div
                 key={n.id}
@@ -1337,213 +688,106 @@ export default function ScenarioCanvas({
                 role="button"
                 tabIndex={tabTarget === n.id ? 0 : -1}
                 aria-label={nodeAriaLabel(n)}
+                aria-pressed={selected}
+                className="group/node absolute flex w-[132px] cursor-pointer flex-col items-center gap-[5px] outline-none transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:-translate-y-[2px] focus-visible:[&_.puck]:ring-2 focus-visible:[&_.puck]:ring-[var(--ringc)] focus-visible:[&_.puck]:ring-offset-2 focus-visible:[&_.puck]:ring-offset-[var(--plane)]"
                 style={{
-                  position: "absolute",
                   left: n.cx - NODE_HALF,
-                  top: n.cy - 32,
-                  width: 140,
-                  cursor: "pointer",
+                  top: n.cy - 24,
                   touchAction: "none",
-                  transformStyle: "preserve-3d",
+                  zIndex: selected ? 2 : 1,
+                  animation: enter ? `fadeUp .3s var(--ease-out) ${delay} both` : undefined,
                 }}
               >
-                {/* ground shadow — sits on the plane, not billboarded */}
-                <div
-                  aria-hidden="true"
-                  style={{
-                    position: "absolute",
-                    left: 33,
-                    top: 18,
-                    width: 74,
-                    height: 28,
-                    background:
-                      "radial-gradient(ellipse, var(--shade) 0%, transparent 70%)",
-                    filter: "blur(3px)",
-                    opacity: tilt ? 1 : 0,
-                    transition: "opacity .4s ease",
-                  }}
-                />
-                {/* billboard: counter-rotates to face the camera. Entrance
-                    fade lives HERE (leaf of the 3D chain) — animated
-                    opacity on an ancestor would flatten preserve-3d. */}
-                <div
-                  style={{
-                    transform: billT,
-                    transformOrigin: "70px 32px",
-                    transition: worldTrans,
-                    animation: `fadeIn .6s ease ${(0.3 + Math.min(i, 12) * 0.06).toFixed(2)}s both`,
-                  }}
-                >
-                  <motion.div
-                    animate={pop}
-                    whileHover={{ scale: 1.08, y: -3 }}
-                    whileTap={{ scale: 0.96 }}
-                    transition={{ duration: 0.18, ease: POP_EASE }}
-                    className="flex flex-col items-center gap-2"
+                <span className="relative size-[46px]">
+                  <span
+                    className="puck absolute inset-0 flex items-center justify-center rounded-node border border-white/40 font-mono text-[11.5px] font-extrabold text-white transition-[box-shadow] duration-[var(--dur-fast)] ease-[var(--ease-out)]"
+                    style={{
+                      background: `color-mix(in oklab, ${n.color} 52%, #000)`,
+                      boxShadow: `${selected ? "0 0 0 2.5px var(--ringc), " : ""}0 4px 0 color-mix(in oklab, ${n.color} 40%, #000), 0 9px 18px var(--ambient)`,
+                      textShadow: "0 1px 2px rgba(0,0,0,.3)",
+                    }}
                   >
-                    <div
-                      className="relative size-16"
-                      style={
-                        lite
-                          ? undefined
-                          : {
-                              animation: `floaty 4s ease-in-out ${((i % 8) * 0.4).toFixed(2)}s infinite`,
-                            }
-                      }
+                    {n.glyph}
+                  </span>
+                  {n.hasFilter && (
+                    <span aria-hidden="true" title={n.filterName || "Filter"} className="absolute -right-[3px] -top-[3px] size-[10px] rounded-full border-2 border-plane" style={{ background: "var(--warn)" }} />
+                  )}
+                  {n.hasErrorHandler && (
+                    <span aria-hidden="true" title="Error handler" className="absolute -bottom-[3px] -right-[3px] size-[10px] rounded-full border-2 border-plane" style={{ background: "var(--err)" }} />
+                  )}
+                  {n.badge && (
+                    <span
+                      aria-hidden="true"
+                      title={badgeTooltip(n.badge) ?? undefined}
+                      className="absolute -left-[3px] -top-[3px] size-[10px] rounded-full border-2 border-plane"
+                      style={{ background: n.badge === "unmatchedLink" ? "var(--err)" : "var(--warn)" }}
+                    />
+                  )}
+                  {n.issueSeverity && (
+                    <span
+                      aria-hidden="true"
+                      title={n.issueText ?? undefined}
+                      className="absolute -bottom-[3px] -left-[3px] flex size-3 items-center justify-center rounded-full border-2 border-plane text-center text-[7.5px] font-bold leading-none text-white"
+                      style={{ background: `var(${SEVERITY_VAR[n.issueSeverity]})`, boxShadow: `0 0 8px var(${SEVERITY_VAR[n.issueSeverity]})` }}
                     >
-                      <div
-                        className="absolute inset-0 flex items-center justify-center rounded-node border border-white/40 font-mono text-[15px] font-extrabold tracking-[.3px] text-white"
-                        style={{
-                          background: onColorGradient(n.color),
-                          boxShadow: tileShadow,
-                          textShadow: "0 1px 2px rgba(0,0,0,.3)",
-                          transition: "box-shadow .18s ease",
-                        }}
-                      >
-                        {n.glyph}
-                      </div>
-                      {n.hasFilter && (
-                        <div
-                          aria-hidden="true"
-                          title={n.filterName || "Filter"}
-                          className="absolute -right-[3px] -top-[3px] size-3 rounded-full border-2 border-plane"
-                          style={{
-                            background: "var(--warn)",
-                            boxShadow: "0 0 8px var(--warn)",
-                          }}
-                        />
-                      )}
-                      {n.hasErrorHandler && (
-                        <div
-                          aria-hidden="true"
-                          title="Error handler"
-                          className="absolute -bottom-[3px] -right-[3px] size-3 rounded-full border-2 border-plane"
-                          style={{
-                            background: "var(--err)",
-                            boxShadow: "0 0 8px var(--err)",
-                          }}
-                        />
-                      )}
-                      {n.changed && (
-                        <div
-                          aria-hidden="true"
-                          title="Changed since you last looked"
-                          className="pointer-events-none absolute -inset-[5px] rounded-[19px] border-2"
-                          style={{ borderColor: "var(--warn)", boxShadow: "0 0 10px color-mix(in srgb, var(--warn) 60%, transparent)" }}
-                        />
-                      )}
-                      {n.issueSeverity && (
-                        <div
-                          aria-hidden="true"
-                          title={n.issueText ?? undefined}
-                          className="absolute -bottom-[3px] -left-[3px] flex size-3.5 items-center justify-center rounded-full border-2 border-plane text-[8px] font-bold leading-none text-white"
-                          style={{
-                            background: `var(${SEVERITY_VAR[n.issueSeverity]})`,
-                            boxShadow: `0 0 8px var(${SEVERITY_VAR[n.issueSeverity]})`,
-                          }}
-                        >
-                          !
-                        </div>
-                      )}
-                      {n.badge && (
-                        <div
-                          aria-hidden="true"
-                          title={badgeTooltip(n.badge) ?? undefined}
-                          className="absolute -left-[3px] -top-[3px] size-3 rounded-full border-2 border-plane"
-                          style={{
-                            background:
-                              n.badge === "unmatchedLink"
-                                ? "var(--err)"
-                                : "var(--warn)",
-                            boxShadow: `0 0 8px ${n.badge === "unmatchedLink" ? "var(--err)" : "var(--warn)"}`,
-                          }}
-                        />
-                      )}
-                    </div>
-                    <div className="flex flex-col items-center gap-[3px]">
-                      <div className="flex max-w-[240px] items-center gap-1">
-                        {n.ordinal && (
-                          <span
-                            aria-hidden="true"
-                            title={`Fires ${ordinalPhrase(n.ordinal)}`}
-                            className="shrink-0 rounded-full border border-line bg-pill px-1.5 py-[2px] font-mono text-[9.5px] font-semibold leading-none text-t3 tabular"
-                          >
-                            {n.ordinal}
-                          </span>
-                        )}
-                        <div
-                          className="min-w-0 truncate whitespace-nowrap rounded-full bg-pill px-3 py-1 text-[13px] font-semibold text-t1"
-                          style={{
-                            border: `1px solid ${selected ? "var(--ringc)" : "var(--line)"}`,
-                            boxShadow: "0 4px 14px var(--shade)",
-                          }}
-                        >
-                          {n.label}
-                        </div>
-                        {n.commentCount ? (
-                          <span
-                            aria-hidden="true"
-                            title={`${n.commentCount} open comment thread${n.commentCount === 1 ? "" : "s"}`}
-                            className="shrink-0 rounded-full border border-line bg-pill px-1.5 py-[2px] text-[9.5px] font-semibold leading-none text-t2"
-                          >
-                            💬 {n.commentCount}
-                          </span>
-                        ) : null}
-                      </div>
-                      <div
-                        className="max-w-[200px] truncate whitespace-nowrap text-[10.5px] text-t2"
-                        title={n.summary && n.summary !== n.label ? n.summary : undefined}
-                      >
-                        {n.kind === "wait" && n.waitText
-                          ? n.waitText
-                          : n.summary && n.summary !== n.label
-                            ? n.summary
-                            : appName(n.app)}
-                        {n.hasFilter && (
-                          <span className="text-warn-text"> · filtered</span>
-                        )}
-                      </div>
-                    </div>
-                  </motion.div>
-                </div>
+                      !
+                    </span>
+                  )}
+                  {n.changed && (
+                    <span
+                      aria-hidden="true"
+                      title="Changed since you last looked"
+                      className="pointer-events-none absolute -inset-[5px] rounded-[12px] border-2"
+                      style={{ borderColor: "var(--warn)", boxShadow: "0 0 9px color-mix(in srgb, var(--warn) 55%, transparent)" }}
+                    />
+                  )}
+                </span>
+                <span className="flex max-w-[140px] items-center gap-1">
+                  {n.ordinal && (
+                    <span
+                      aria-hidden="true"
+                      title={`Fires ${ordinalPhrase(n.ordinal)}`}
+                      className="tabular flex-none rounded-full border border-line bg-pill px-[5px] py-px font-mono text-[8.5px] leading-[1.4] text-t3"
+                    >
+                      {n.ordinal}
+                    </span>
+                  )}
+                  <span
+                    className="truncate whitespace-nowrap rounded-full border bg-pill px-2 py-[3px] text-[10px] font-semibold leading-none text-t1"
+                    style={{ borderColor: selected ? "var(--line-strong)" : "var(--line)" }}
+                  >
+                    {n.label}
+                  </span>
+                  {n.commentCount ? (
+                    <span
+                      aria-hidden="true"
+                      title={`${n.commentCount} open comment thread${n.commentCount === 1 ? "" : "s"}`}
+                      className="flex-none rounded-full border border-line bg-pill px-[5px] py-px font-mono text-[8.5px] leading-[1.4] text-t2"
+                    >
+                      💬 {n.commentCount}
+                    </span>
+                  ) : null}
+                </span>
+                <span
+                  className="tabular max-w-[150px] truncate whitespace-nowrap font-mono text-[9px] leading-none"
+                  style={{ color: n.runLine?.failing ? "var(--err-text)" : "var(--t3)" }}
+                  title={n.runLine ? n.runLine.text : second}
+                >
+                  {n.runLine ? n.runLine.text : second}
+                  {!n.runLine && n.hasFilter && <span className="text-warn-text"> · filtered</span>}
+                </span>
               </div>
             );
           })}
         </div>
       </div>
 
-      </div>
-
       {/* zoom cluster — sibling of the pan surface so clicks always land */}
-      <TooltipProvider delayDuration={400}>
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-          onPointerDown={(e) => e.stopPropagation()}
-          className="absolute bottom-4 left-4 z-[2] flex flex-col items-center gap-1.5"
-        >
-          <ClusterButton label="Zoom in (+)" onClick={() => zoomBy(1.2)}>
-            <Plus className="size-4" />
-          </ClusterButton>
-          <ClusterButton label="Zoom out (−)" onClick={() => zoomBy(0.83)}>
-            <Minus className="size-4" />
-          </ClusterButton>
-          <ClusterButton label="Fit to view (F)" onClick={fit}>
-            <Maximize2 className="size-3.5" />
-          </ClusterButton>
-          <ClusterButton
-            label={tilt ? "Switch to 2D (T)" : "Switch to 3D (T)"}
-            onClick={toggle3d}
-            active={tilt}
-          >
-            <span className="text-[10px] font-bold">{tilt ? "2D" : "3D"}</span>
-          </ClusterButton>
-          <span className="tabular mt-0.5 font-mono text-[9px] text-t3">
-            {Math.round(cam.zoom * 100)}%
-          </span>
-        </motion.div>
-      </TooltipProvider>
+      <div onPointerDown={(e) => e.stopPropagation()} className="absolute bottom-3 right-3 z-[2] flex items-center gap-1 anim-fade-in" style={{ animationDelay: ".3s" }}>
+        <IconBtn icon={Minus} label="Zoom out (−)" size={26} onClick={() => zoomBy(0.83)} className="bg-glass backdrop-blur-[8px]" />
+        <IconBtn icon={Plus} label="Zoom in (+)" size={26} onClick={() => zoomBy(1.2)} className="bg-glass backdrop-blur-[8px]" />
+        <IconBtn icon={Maximize2} label="Fit to view (F)" size={26} onClick={fit} className="bg-glass backdrop-blur-[8px]" />
+      </div>
     </div>
   );
 }

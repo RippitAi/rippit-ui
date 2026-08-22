@@ -2,245 +2,85 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  AnimatePresence,
-  animate,
-  motion,
-  useMotionValue,
-  useTransform,
-} from "framer-motion";
-import {
-  Activity,
-  ArrowUpRight,
-  Boxes,
-  Cable,
-  ChevronRight,
-  Link2,
-  Network,
-  Search,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { appColor, appGlyph, onColorGradient } from "@/lib/apps";
-import {
-  useConnections,
-  useWorkflowIndex,
-  WorkflowIndexEntry,
-} from "@/components/app/ConnectionsProvider";
-import { getConnector, providerColor } from "@/lib/connectors";
-import { Segmented } from "@/components/shared/Segmented";
 import { useSearchParams } from "next/navigation";
+import { Boxes, ChevronDown, Link2, Network, Search, Unplug, type LucideIcon } from "lucide-react";
+import { useConnections, useWorkflowIndex, WorkflowIndexEntry } from "@/components/app/ConnectionsProvider";
+import { getConnector } from "@/lib/connectors";
+import { Segmented } from "@/components/shared/Segmented";
 import { useTags } from "@/components/tags/tags-context";
 import { TagChip } from "@/components/tags/TagChip";
 import { TagFilter, matchesTags } from "@/components/tags/TagFilter";
 import type { Tag, LastRun } from "@/app/lib/api";
-import { LastRunChip } from "@/components/shared/RunsPanel";
+import { LastRunChip, relativeTime } from "@/components/shared/RunsPanel";
 import { SaveViewButton } from "@/components/shared/SaveViewButton";
 import { fetchMembers, fetchViews } from "@/app/lib/api";
 import { useAuth } from "@/components/app/AuthProvider";
 import { useWorkspace } from "@/components/app/WorkspaceProvider";
-import { ChevronDown } from "lucide-react";
 import { workflowHref } from "@/lib/portals";
+import { AppPuck } from "@/components/shared/AppPuck";
+import { StatusPill } from "@/components/shared/StatusPill";
+import { RowCard, ViewBar, ViewBody, ViewTitle } from "@/components/views/ViewFrame";
+import { useCountUp } from "@/lib/useCountUp";
 
-const EASE = [0.22, 1, 0.36, 1] as const;
+/*
+ * Dashboard = the library. Four stat cards, then every workflow as a card
+ * list you can group (platform · folder · tag · owner · status · changed),
+ * filter (tags · All/Mine/Watched · status · search) and save as a view.
+ */
 
 type Tone = "active" | "paused" | "inactive";
+type GroupBy = "platform" | "folder" | "tag" | "owner" | "status" | "changed";
 
 function toneOf(w: WorkflowIndexEntry): Tone {
   if (w.status === "paused") return "paused";
   return w.live ? "active" : "inactive";
 }
+const PILL_TONE: Record<Tone, "ok" | "warn" | "muted"> = { active: "ok", paused: "warn", inactive: "muted" };
 
-/* Status colors from the theme tokens: text role for chip text, graphic
-   role for dots/tints (see globals.css). */
-const STATUS_META: Record<
-  Tone,
-  { color: string; bg: string; border: string; label: string; dot: string }
-> = {
-  active: {
-    color: "var(--ok-text)",
-    bg: "color-mix(in srgb, var(--ok) 10%, transparent)",
-    border: "color-mix(in srgb, var(--ok) 30%, transparent)",
-    label: "Active",
-    dot: "var(--ok)",
-  },
-  paused: {
-    color: "var(--warn-text)",
-    bg: "color-mix(in srgb, var(--warn) 10%, transparent)",
-    border: "color-mix(in srgb, var(--warn) 32%, transparent)",
-    label: "Paused",
-    dot: "var(--warn)",
-  },
-  inactive: {
-    color: "var(--off-text)",
-    bg: "color-mix(in srgb, var(--off) 10%, transparent)",
-    border: "color-mix(in srgb, var(--off) 30%, transparent)",
-    label: "Inactive",
-    dot: "var(--off)",
-  },
-};
-
-function CountUp({ value }: { value: number }) {
-  const mv = useMotionValue(0);
-  const rounded = useTransform(mv, (v) => Math.round(v).toLocaleString());
-  useEffect(() => {
-    const controls = animate(mv, value, { duration: 0.9, ease: EASE });
-    return () => controls.stop();
-  }, [value, mv]);
-  return <motion.span>{rounded}</motion.span>;
-}
-
-function Card({
-  className = "",
-  delay = 0,
-  hover = false,
-  children,
-}: {
-  className?: string;
-  delay?: number;
-  hover?: boolean;
-  children: React.ReactNode;
-}) {
+function Stat({ label, value, icon: Icon, delay, danger }: { label: string; value: number; icon: LucideIcon; delay: number; danger?: boolean }) {
+  const n = useCountUp(value, delay * 1000);
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileHover={hover ? { y: -2 } : undefined}
-      transition={{ duration: 0.45, ease: EASE, delay }}
-      className={`card-sharp rounded-card border border-line bg-panel backdrop-blur-[14px] ${className}`}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  caption,
-  icon,
-  delay,
-}: {
-  label: string;
-  value: number;
-  caption?: string;
-  icon: React.ReactNode;
-  delay: number;
-}) {
-  return (
-    <Card delay={delay} hover className="flex items-center gap-3.5 px-4 py-3.5">
-      <div className="flex size-9 flex-none items-center justify-center rounded-[10px] border border-line bg-hover text-t2">
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <p className="tabular text-[21px] font-bold leading-none tracking-[-0.02em]">
-          <CountUp value={value} />
-        </p>
-        <p className="mt-1.5 truncate text-[10.5px] leading-none text-t3">
-          {label}
-          {caption && <span> · {caption}</span>}
-        </p>
-      </div>
-    </Card>
-  );
-}
-
-function AppPuck({ app, size = 34 }: { app: string; size?: number }) {
-  const col = appColor(app);
-  return (
-    <div
-      aria-hidden="true"
-      className="flex flex-none items-center justify-center rounded-[10px] border border-white/25 font-mono text-[11px] font-bold text-white"
-      style={{
-        width: size,
-        height: size,
-        background: onColorGradient(col),
-        boxShadow: `0 3px 0 color-mix(in oklab, ${col} 55%, #000000), 0 6px 14px var(--ambient)`,
-        textShadow: "0 1px 2px rgba(0,0,0,.3)",
-      }}
-    >
-      {appGlyph(app)}
+    <div className="flex items-center gap-[11px] rounded-card border border-line bg-panel px-3.5 py-3 shadow-[var(--shadow-card)] anim-fade-up" style={{ animationDelay: `${delay}s` }}>
+      <span className="inline-flex size-[30px] flex-none items-center justify-center rounded-control border border-line bg-hover" style={{ color: danger && value > 0 ? "var(--err-text)" : "var(--t2)" }}>
+        <Icon aria-hidden="true" className="size-[13px]" />
+      </span>
+      <span>
+        <span className="tabular block text-[17px] font-bold leading-none">{n}</span>
+        <span className="mt-[3px] block text-[9.5px] text-t3">{label}</span>
+      </span>
     </div>
   );
 }
 
-function WorkflowRow({ workflow, tags, lastRun, changed }: { workflow: WorkflowIndexEntry; tags?: Tag[]; lastRun?: LastRun; changed?: number }) {
-  const st = STATUS_META[toneOf(workflow)];
+function WorkflowRow({ workflow, tags, lastRun, changed, accountName }: { workflow: WorkflowIndexEntry; tags?: Tag[]; lastRun?: LastRun; changed?: number; accountName?: string }) {
   const connector = getConnector(workflow.provider);
+  const tone = toneOf(workflow);
+  const folder = workflow.groupPath.length > 1 ? workflow.groupPath[workflow.groupPath.length - 1] : null;
   return (
-    <Link
-      href={workflowHref({ source: workflow.provider, refId: workflow.refId })}
-      className="group flex items-center justify-between gap-3 px-4 py-[11px] transition-colors hover:bg-hover"
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="transition-transform duration-150 group-hover:-translate-y-[2px]">
-          <AppPuck app={workflow.app || workflow.provider} />
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-[12.5px] font-semibold leading-tight tracking-[-0.01em]">
-            {workflow.name}
-          </p>
-          <p className="mt-[3px] flex items-center gap-1.5 truncate text-[10.5px] leading-none text-t3">
-            <span className="flex items-center gap-1">
-              <span
-                aria-hidden="true"
-                className="size-[6px] rounded-[2px]"
-                style={{ background: providerColor(workflow.provider) }}
-              />
-              {connector.shortLabel}
-            </span>
-            {workflow.groupPath.length > 0 && (
-              <>
-                <span
-                  aria-hidden="true"
-                  className="size-[2px] rounded-full bg-t3"
-                />
-                <span className="truncate">
-                  {workflow.groupPath.join(" / ")}
-                </span>
-              </>
-            )}
-          </p>
-        </div>
-      </div>
-      <div className="flex flex-none items-center gap-2.5">
-        {changed ? (
-          <span
-            className="rounded-full border px-2 py-[2px] text-[9.5px] font-semibold"
-            style={{ color: "var(--warn-text)", borderColor: "color-mix(in srgb, var(--warn) 40%, transparent)", background: "color-mix(in srgb, var(--warn) 10%, transparent)" }}
-            title="Changes since you last looked"
-          >
-            {changed} change{changed === 1 ? "" : "s"}
-          </span>
-        ) : null}
-        {lastRun && (lastRun.status === "error" || lastRun.status === "incomplete") && (
-          <LastRunChip status={lastRun.status} at={lastRun.at} />
-        )}
-        {tags && tags.length > 0 && (
-          <span className="hidden items-center gap-1 md:flex">
-            {tags.slice(0, 3).map((t) => (
-              <TagChip key={t.id} tag={t} size="xs" />
-            ))}
-            {tags.length > 3 && <span className="text-[9.5px] text-t3">+{tags.length - 3}</span>}
-          </span>
-        )}
-        <span
-          className="inline-flex w-[74px] items-center justify-center gap-1.5 rounded-full border px-2 py-[3px] text-[10px] font-semibold"
-          style={{ color: st.color, background: st.bg, borderColor: st.border }}
-        >
-          <span
-            aria-hidden="true"
-            className="size-[5px] rounded-full"
-            style={{
-              background: st.dot,
-              boxShadow: st.dot === "var(--off)" ? "none" : `0 0 6px ${st.dot}`,
-            }}
-          />
-          {st.label}
+    <Link href={workflowHref({ source: workflow.provider, refId: workflow.refId })} className="group flex w-full items-center gap-2.5 border-b border-line2 px-3.5 py-2.5 text-left transition-[background] duration-[var(--dur-fast)] ease-[var(--ease-out)] last:border-b-0 hover:bg-hover">
+      <span className="transition-transform duration-[var(--dur-fast)] group-hover:-translate-y-[2px]">
+        <AppPuck app={workflow.app || workflow.provider} size={22} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[11.5px] font-semibold text-t1">{workflow.name}</span>
+        <span className="tabular mt-[1px] block truncate font-mono text-[8.5px] text-t3">
+          {connector.shortLabel}
+          {accountName ? ` · ${accountName}` : ""}
+          {folder ? ` · ${folder}` : ""}
+          {lastRun?.at ? ` · last run ${relativeTime(lastRun.at)}` : ""}
         </span>
-        <ChevronRight className="size-3.5 -translate-x-1 text-t3 opacity-0 transition-all duration-150 group-hover:translate-x-0 group-hover:opacity-100" />
-      </div>
+      </span>
+      {tags && tags.length > 0 && (
+        <span className="hidden items-center gap-1 md:flex">
+          {tags.slice(0, 2).map((t) => (
+            <TagChip key={t.id} tag={t} size="xs" />
+          ))}
+          {tags.length > 2 && <span className="text-[9.5px] text-t3">+{tags.length - 2}</span>}
+        </span>
+      )}
+      {lastRun && (lastRun.status === "error" || lastRun.status === "incomplete") && <LastRunChip status={lastRun.status} at={lastRun.at} />}
+      {changed ? <StatusPill pill={{ label: String(changed), tone: "warn" }} dot={false} /> : null}
+      <StatusPill pill={{ label: tone, tone: PILL_TONE[tone] }} />
     </Link>
   );
 }
@@ -259,11 +99,13 @@ export default function DashboardPage() {
   const [scope, setScope] = useState<"all" | "mine" | "watched">("all");
   const { user } = useAuth();
   const { current: workspace } = useWorkspace();
-  // Library grouping — look at the estate the way you think about it.
-  type GroupBy = "platform" | "folder" | "tag" | "owner" | "status" | "changed";
   const [groupBy, setGroupBy] = useState<GroupBy>("platform");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [memberNames, setMemberNames] = useState<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    document.title = "Dashboard — Rippit";
+  }, []);
   useEffect(() => {
     if (!workspace) return;
     let live = true;
@@ -275,7 +117,6 @@ export default function DashboardPage() {
     };
   }, [workspace]);
   const viewId = searchParams.get("view");
-  // Saved view → apply its filters once.
   useEffect(() => {
     if (!viewId) return;
     let live = true;
@@ -295,36 +136,13 @@ export default function DashboardPage() {
       live = false;
     };
   }, [viewId]);
-  const ownerByKey = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const w of linkMap?.workflows ?? []) if (w.ownerUserId) m.set(`${w.source}:${w.refId}`, w.ownerUserId);
-    return m;
-  }, [linkMap]);
-  const watchedKeys = useMemo(() => new Set((linkMap?.workflows ?? []).filter((w) => w.watching).map((w) => `${w.source}:${w.refId}`)), [linkMap]);
-  const changedWorkflows = useMemo(
-    () => (linkMap?.workflows ?? []).filter((w) => (w.changedSince?.count ?? 0) > 0).length,
-    [linkMap]
-  );
-  const changedByKey = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const w of linkMap?.workflows ?? []) if (w.changedSince?.count) m.set(`${w.source}:${w.refId}`, w.changedSince.count);
-    return m;
-  }, [linkMap]);
-  const lastRunByKey = useMemo(() => {
-    const m = new Map<string, LastRun>();
-    for (const w of linkMap?.workflows ?? []) if (w.lastRun) m.set(`${w.source}:${w.refId}`, w.lastRun);
-    return m;
-  }, [linkMap]);
-  /* tags per workflow come with the link map (merged per request) */
-  const tagsByKey = useMemo(() => {
-    const m = new Map<string, Tag[]>();
-    for (const w of linkMap?.workflows ?? []) if (w.tags?.length) m.set(`${w.source}:${w.refId}`, w.tags);
-    return m;
-  }, [linkMap]);
 
-  useEffect(() => {
-    document.title = "Dashboard — Rippit";
-  }, []);
+  const byKey = useMemo(() => {
+    const m = new Map<string, { owner?: string; watching?: boolean; changed?: number; lastRun?: LastRun; tags?: Tag[] }>();
+    for (const w of linkMap?.workflows ?? []) m.set(`${w.source}:${w.refId}`, { owner: w.ownerUserId, watching: w.watching, changed: w.changedSince?.count, lastRun: w.lastRun, tags: w.tags });
+    return m;
+  }, [linkMap]);
+  const accountOf = useMemo(() => new Map(connections.map((c) => [c.id, c.displayName])), [connections]);
 
   const counts = useMemo(() => {
     const c = { active: 0, paused: 0, inactive: 0 };
@@ -332,48 +150,39 @@ export default function DashboardPage() {
     return c;
   }, [all]);
 
-  const perConnection = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const w of all) m.set(w.connectionId, (m.get(w.connectionId) || 0) + 1);
-    return m;
-  }, [all]);
-
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return all.filter((w) => {
+      const k = byKey.get(`${w.provider}:${w.refId}`);
       if (statusFilter !== "all" && toneOf(w) !== statusFilter) return false;
-      if (!matchesTags(tagsByKey.get(`${w.provider}:${w.refId}`), tagFilter)) return false;
-      if (scope === "mine" && ownerByKey.get(`${w.provider}:${w.refId}`) !== user?.id) return false;
-      if (scope === "watched" && !watchedKeys.has(`${w.provider}:${w.refId}`)) return false;
+      if (!matchesTags(k?.tags, tagFilter)) return false;
+      if (scope === "mine" && k?.owner !== user?.id) return false;
+      if (scope === "watched" && !k?.watching) return false;
       if (!q) return true;
-      return (
-        w.name.toLowerCase().includes(q) ||
-        w.groupPath.some((g) => g.toLowerCase().includes(q)) ||
-        w.provider.includes(q)
-      );
+      return w.name.toLowerCase().includes(q) || w.groupPath.some((g) => g.toLowerCase().includes(q)) || w.provider.includes(q);
     });
-  }, [all, query, statusFilter, tagFilter, tagsByKey, scope, ownerByKey, watchedKeys, user]);
+  }, [all, query, statusFilter, tagFilter, byKey, scope, user]);
 
   const groups = useMemo(() => {
     const keyOf = (w: WorkflowIndexEntry): { id: string; label: string; sub?: string }[] => {
-      const key = `${w.provider}:${w.refId}`;
+      const k = byKey.get(`${w.provider}:${w.refId}`);
       switch (groupBy) {
         case "platform":
-          return [{ id: `p:${w.provider}`, label: getConnector(w.provider).label }];
+          return [{ id: `p:${w.connectionId}`, label: `${getConnector(w.provider).shortLabel} · ${accountOf.get(w.connectionId) ?? getConnector(w.provider).label}` }];
         case "folder":
           return [{ id: `f:${w.provider}:${w.groupPath.join("/")}`, label: w.groupPath.length ? w.groupPath.join(" / ") : "No folder", sub: getConnector(w.provider).shortLabel }];
         case "tag": {
-          const ts = tagsByKey.get(key) ?? [];
+          const ts = k?.tags ?? [];
           return ts.length ? ts.map((t) => ({ id: `t:${t.id}`, label: t.name })) : [{ id: "t:none", label: "Untagged" }];
         }
         case "owner": {
-          const o = ownerByKey.get(key);
+          const o = k?.owner;
           return [{ id: `o:${o ?? "none"}`, label: o ? memberNames.get(o) ?? "Owner" : "No owner" }];
         }
         case "status":
           return [{ id: `s:${toneOf(w)}`, label: toneOf(w) }];
         case "changed": {
-          const n = changedByKey.get(key) ?? 0;
+          const n = k?.changed ?? 0;
           return [{ id: n ? "c:changed" : "c:same", label: n ? "Changed since you last looked" : "Unchanged" }];
         }
       }
@@ -386,437 +195,111 @@ export default function DashboardPage() {
         map.set(g.id, entry);
       }
     }
-    const order = (g: { id: string; label: string }) => (g.id.endsWith(":none") || g.id === "t:none" || g.id === "c:same" ? 1 : 0);
+    const order = (g: { id: string }) => (g.id.endsWith(":none") || g.id === "c:same" ? 1 : 0);
     return [...map.values()].sort((a, b) => order(a) - order(b) || b.items.length - a.items.length || a.label.localeCompare(b.label));
-  }, [filtered, groupBy, tagsByKey, ownerByKey, memberNames, changedByKey]);
+  }, [filtered, groupBy, byKey, accountOf, memberNames]);
 
-  if (loading) {
-    return (
-      <div
-        role="status"
-        aria-live="polite"
-        className="flex h-full items-center justify-center"
-      >
-        <div className="text-center">
-          <motion.div
-            aria-hidden="true"
-            initial={{ opacity: 0, rotate: 0 }}
-            animate={{ opacity: 1, rotate: 45 }}
-            transition={{ duration: 0.7, ease: EASE }}
-            className="mx-auto flex size-9 items-center justify-center rounded-[10px] bg-t1"
-          >
-            <div className="size-2.5 animate-pulse rounded-full bg-bg motion-reduce:animate-none" />
-          </motion.div>
-          <p className="mt-4 text-[12px] text-t3">Loading workspace…</p>
-        </div>
-      </div>
-    );
-  }
-
-  const nothingConnected = connections.length === 0;
-  const health = all.length
-    ? Math.round((counts.active / all.length) * 100)
-    : 0;
-  const maxPerConnection = Math.max(1, ...perConnection.values());
+  const nothingConnected = !loading && connections.length === 0;
+  const platformsMeta = connections.length > 0 ? connections.map((c) => `${getConnector(c.provider).shortLabel} · ${c.displayName}`).join(", ") : "no platforms connected";
+  const broken = (linkMap?.stats.deadLinks ?? 0) + (linkMap?.stats.issueErrors ?? 0);
 
   return (
-    <div className="flex h-full flex-col">
-      {/* top bar */}
-      <header className="flex h-[52px] flex-none items-center gap-3 border-b border-line px-4">
-        <SidebarTrigger className="text-t3 hover:text-t1" />
-        <div className="h-4 w-px bg-line" aria-hidden="true" />
-        <div className="flex items-baseline gap-2">
-          <h1 className="text-[13.5px] font-semibold tracking-[-0.01em]">
-            Dashboard
-          </h1>
-          <span className="text-[10px] text-t3" aria-hidden="true">
-            /
-          </span>
-          <span className="text-[11px] text-t3">Overview</span>
-        </div>
-        <div className="flex-1" />
-        <span className="hidden rounded-[5px] border border-line bg-hover px-[7px] py-[3px] font-mono text-[9.5px] text-t2 sm:inline">
-          {connections.length > 0
-            ? `${connections.length} platform${connections.length > 1 ? "s" : ""} connected`
-            : "no platforms connected"}
-        </span>
-        <Button
-          asChild
-          size="sm"
-          className="h-auto rounded-control px-3 py-[6px] text-[11.5px] font-semibold hover:opacity-85"
-        >
-          <Link href="/monitor">
-            <Activity className="size-3" />
-            Open Monitor
-          </Link>
-        </Button>
-      </header>
-
-      {/* content */}
-      <div className="relative min-h-0 flex-1 overflow-y-auto">
-        {/* brand backdrop */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 h-[380px]"
-          style={{
-            backgroundImage:
-              "radial-gradient(var(--dot) 1.2px, transparent 1.6px)",
-            backgroundSize: "24px 24px",
-            opacity: 0.28,
-            maskImage:
-              "radial-gradient(ellipse 85% 100% at 50% 0%, black 0%, transparent 72%)",
-            WebkitMaskImage:
-              "radial-gradient(ellipse 85% 100% at 50% 0%, black 0%, transparent 72%)",
-          }}
+    <div className="flex h-full min-w-0 flex-col">
+      <ViewBar title="Dashboard" meta={platformsMeta}>
+        <Segmented
+          label="Group by"
+          value={groupBy}
+          options={[
+            { value: "platform", label: "Platform" },
+            { value: "folder", label: "Folder" },
+            { value: "tag", label: "Tag" },
+            { value: "owner", label: "Owner" },
+            { value: "status", label: "Status" },
+            { value: "changed", label: "Changed" },
+          ]}
+          onChange={setGroupBy}
         />
-
-        <div className="relative flex flex-col gap-3.5 p-4 lg:p-5">
-          {/* stats */}
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-            <Stat
-              label="Platforms"
-              value={connections.length}
-              icon={<Cable className="size-[15px]" />}
-              delay={0}
-            />
-            <Stat
-              label="Workflows"
-              value={all.length}
-              caption={all.length ? `${counts.active} active` : undefined}
-              icon={<Network className="size-[15px]" />}
-              delay={0.05}
-            />
-            <Stat
-              label="Active"
-              value={counts.active}
-              icon={<Boxes className="size-[15px]" />}
-              delay={0.1}
-            />
-            <Stat
-              label="Cross-links"
-              value={linkMap?.stats.links ?? 0}
-              caption={
-                linkMap && (linkMap.stats.deadLinks > 0 || (linkMap.stats.issueErrors ?? 0) > 0)
-                  ? [
-                      linkMap.stats.deadLinks > 0 ? `${linkMap.stats.deadLinks} broken` : null,
-                      (linkMap.stats.issueErrors ?? 0) > 0 ? `${linkMap.stats.issueErrors} error issues` : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")
-                  : undefined
-              }
-              icon={<Link2 className="size-[15px]" />}
-              delay={0.15}
-            />
-          </div>
-
-          {/* main grid */}
-          <div className="grid items-start gap-3.5 xl:grid-cols-3">
-            {/* workflows */}
-            <Card delay={0.18} className="overflow-hidden xl:col-span-2">
-              <div className="flex flex-wrap items-center gap-2.5 border-b border-line2 px-4 py-2.5">
-                <h2 className="text-[13px] font-semibold tracking-[-0.01em]">
-                  Workflows
-                </h2>
-                <span className="rounded-[5px] border border-line bg-hover px-1.5 py-0.5 font-mono text-[9.5px] text-t2">
-                  {filtered.length}
-                </span>
-                <Segmented
-                  label="Group by"
-                  value={groupBy}
-                  options={[
-                    { value: "platform", label: "Platform" },
-                    { value: "folder", label: "Folder" },
-                    { value: "tag", label: "Tag" },
-                    { value: "owner", label: "Owner" },
-                    { value: "status", label: "Status" },
-                    { value: "changed", label: "Changed" },
-                  ]}
-                  onChange={setGroupBy}
-                />
-                <div className="flex-1" />
-                <TagFilter tags={allTags} selected={tagFilter} onChange={setTagFilter} />
-                <Segmented
-                  label="Scope"
-                  value={scope}
-                  options={[
-                    { value: "all", label: "All" },
-                    { value: "mine", label: "Mine" },
-                    { value: "watched", label: "Watched" },
-                  ]}
-                  onChange={setScope}
-                />
-                <SaveViewButton kind="dashboard" filters={{ tags: tagFilter, status: statusFilter, scope, query, groupBy }} />
-                <Segmented
-                  label="Filter workflows by status"
-                  value={statusFilter}
-                  options={(["all", "active", "paused", "inactive"] as const).map(
-                    (f) => ({ value: f, label: f })
-                  )}
-                  onChange={setStatusFilter}
-                />
-                <div className="relative">
-                  <Search
-                    aria-hidden="true"
-                    className="absolute left-2.5 top-1/2 size-3 -translate-y-1/2 text-t3"
-                  />
-                  <Input
-                    type="search"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search…"
-                    aria-label="Search workflows"
-                    className="h-[26px] w-[140px] rounded-full border-line bg-hover pl-7 text-[11px] placeholder:text-t3"
-                  />
-                </div>
-              </div>
-              <div className="max-h-[70vh] overflow-y-auto">
-                <AnimatePresence initial={false} mode="popLayout">
-                  {filtered.length === 0 ? (
-                    <motion.div
-                      key="empty"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="px-4 py-10 text-center text-[12px] text-t3"
-                    >
-                      {nothingConnected ? (
-                        <>
-                          No workflows yet —{" "}
-                          <Link
-                            href="/settings/connections"
-                            className="font-semibold text-t1 underline-offset-4 hover:underline"
-                          >
-                            connect a platform
-                          </Link>{" "}
-                          to pull them in.
-                        </>
-                      ) : all.length === 0 ? (
-                        "Nothing synced yet — try Sync now in Settings."
-                      ) : (
-                        "No workflows match"
-                      )}
-                    </motion.div>
-                  ) : (
-                    groups.map((g) => {
-                      const isCollapsed = collapsed.has(g.id);
-                      return (
-                        <motion.section
-                          key={g.id}
-                          layout
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: 0.25, ease: EASE }}
-                          aria-label={g.label}
-                        >
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setCollapsed((c) => {
-                                const n = new Set(c);
-                                if (n.has(g.id)) n.delete(g.id);
-                                else n.add(g.id);
-                                return n;
-                              })
-                            }
-                            aria-expanded={!isCollapsed}
-                            className="sticky top-0 z-[1] flex w-full items-center gap-2 border-b border-line2 bg-panel/95 px-4 py-1.5 text-left backdrop-blur-[6px]"
-                          >
-                            <ChevronDown aria-hidden="true" className={`size-3 text-t3 transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
-                            <span className="text-[11px] font-semibold text-t1">{g.label}</span>
-                            {g.sub && <span className="text-[10px] text-t3">{g.sub}</span>}
-                            <span className="rounded-[5px] border border-line bg-hover px-1.5 py-0.5 font-mono text-[9.5px] text-t2">{g.items.length}</span>
-                          </button>
-                          {!isCollapsed &&
-                            g.items.map((w) => (
-                              <div key={`${g.id}|${w.provider}:${w.refId}`} className="border-b border-line2 last:border-b-0">
-                                <WorkflowRow
-                                  workflow={w}
-                                  tags={tagsByKey.get(`${w.provider}:${w.refId}`)}
-                                  lastRun={lastRunByKey.get(`${w.provider}:${w.refId}`)}
-                                  changed={changedByKey.get(`${w.provider}:${w.refId}`)}
-                                />
-                              </div>
-                            ))}
-                        </motion.section>
-                      );
-                    })
-                  )}
-                </AnimatePresence>
-              </div>
-            </Card>
-
-            {/* right rail */}
-            <div className="flex flex-col gap-3.5">
-              {/* health */}
-              <Card delay={0.22} className="px-4 py-3.5">
-                <div className="mb-3 flex items-baseline justify-between">
-                  <h2 className="text-[13px] font-semibold tracking-[-0.01em]">
-                    Fleet health
-                  </h2>
-                  <span className="tabular font-mono text-[11px] font-medium text-t2">
-                    {health}% active
-                    {changedWorkflows > 0 && (
-                      <span className="text-warn-text"> · {changedWorkflows} changed since you last looked</span>
-                    )}
-                  </span>
-                </div>
-                <div
-                  role="img"
-                  aria-label={`Fleet health: ${counts.active} active, ${counts.paused} paused, ${counts.inactive} inactive`}
-                  className="flex h-[8px] w-full gap-[2px] overflow-hidden rounded-full bg-hover"
-                >
-                  {all.length === 0 ? (
-                    <div aria-hidden="true" className="w-full" />
-                  ) : (
-                    (["active", "paused", "inactive"] as const).map((k) =>
-                      counts[k] > 0 ? (
-                        <motion.div
-                          key={k}
-                          initial={{ scaleX: 0 }}
-                          animate={{ scaleX: 1 }}
-                          transition={{ duration: 0.7, ease: EASE, delay: 0.4 }}
-                          className="origin-left rounded-full"
-                          style={{
-                            flex: counts[k],
-                            background:
-                              k === "inactive"
-                                ? "color-mix(in srgb, var(--off) 45%, transparent)"
-                                : STATUS_META[k].dot,
-                          }}
-                        />
-                      ) : null
-                    )
-                  )}
-                </div>
-                <div className="mt-3 divide-y divide-line2">
-                  {(["active", "paused", "inactive"] as const).map((k) => (
-                    <div
-                      key={k}
-                      className="flex items-center gap-2 py-[7px] text-[11.5px] text-t2 first:pt-0 last:pb-0"
-                    >
-                      <span
-                        aria-hidden="true"
-                        className="size-[7px] rounded-[2px]"
-                        style={{ background: STATUS_META[k].dot }}
-                      />
-                      <span className="capitalize">{k}</span>
-                      <span className="tabular ml-auto font-mono text-[10.5px] text-t3">
-                        {counts[k]}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-
-              {/* connected platforms */}
-              <Card delay={0.26} className="px-4 py-3.5">
-                <h2 className="mb-3 text-[13px] font-semibold tracking-[-0.01em]">
-                  Platforms
-                </h2>
-                <div className="flex flex-col gap-2.5">
-                  {connections.length === 0 && (
-                    <p className="text-[11px] text-t3">
-                      Nothing connected —{" "}
-                      <Link
-                        href="/settings/connections"
-                        className="font-semibold text-t2 underline-offset-4 hover:text-t1 hover:underline"
-                      >
-                        add a platform
-                      </Link>
-                    </p>
-                  )}
-                  {connections.map((conn, i) => {
-                    const connector = getConnector(conn.provider);
-                    const count = perConnection.get(conn.id) || 0;
-                    return (
-                      <div key={conn.id} className="flex items-center gap-2.5">
-                        <div
-                          aria-hidden="true"
-                          className="flex size-6 flex-none items-center justify-center rounded-[8px] border border-white/25 font-mono text-[9px] font-bold text-white"
-                          style={{
-                            background: onColorGradient(connector.brandColor),
-                          }}
-                        >
-                          {connector.glyph}
-                        </div>
-                        <span className="w-[92px] truncate text-[11.5px] font-medium">
-                          {conn.label || connector.label}
-                        </span>
-                        <div className="h-[5px] min-w-0 flex-1 overflow-hidden rounded-full bg-hover">
-                          <motion.div
-                            initial={{ scaleX: 0 }}
-                            animate={{ scaleX: count / maxPerConnection }}
-                            transition={{
-                              duration: 0.7,
-                              ease: EASE,
-                              delay: 0.4 + i * 0.05,
-                            }}
-                            className="h-full origin-left rounded-full"
-                            style={{ background: "var(--barc)" }}
-                          />
-                        </div>
-                        <span className="tabular w-5 text-right font-mono text-[10px] text-t3">
-                          {count}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </Card>
-
-              {/* monitor promo */}
-              <Card delay={0.3} className="relative overflow-hidden px-4 py-3.5">
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-0"
-                  style={{
-                    backgroundImage:
-                      "radial-gradient(var(--dot) 1.2px, transparent 1.6px)",
-                    backgroundSize: "20px 20px",
-                    opacity: 0.5,
-                    maskImage:
-                      "radial-gradient(ellipse 90% 90% at 100% 0%, black 0%, transparent 65%)",
-                    WebkitMaskImage:
-                      "radial-gradient(ellipse 90% 90% at 100% 0%, black 0%, transparent 65%)",
-                  }}
-                />
-                <div className="relative">
-                  <div className="mb-1.5 flex items-center gap-2">
-                    <span
-                      aria-hidden="true"
-                      className="size-[7px] rounded-full bg-ok"
-                      style={{
-                        boxShadow: "0 0 8px var(--ok)",
-                        animation: "blinkdot 1.6s infinite",
-                      }}
-                    />
-                    <h2 className="text-[13px] font-semibold tracking-[-0.01em]">
-                      Live monitor
-                    </h2>
-                  </div>
-                  <p className="mb-3 text-[11px] leading-relaxed text-t2">
-                    Watch runs pulse through your workflows on the infinite 3D
-                    canvas.
-                  </p>
-                  <Button
-                    asChild
-                    size="sm"
-                    variant="outline"
-                    className="h-auto rounded-control border-line bg-transparent px-3 py-[6px] text-[11.5px] font-semibold text-t2 hover:border-t1 hover:bg-transparent hover:text-t1"
-                  >
-                    <Link href="/monitor">
-                      Open Monitor
-                      <ArrowUpRight className="size-3" />
-                    </Link>
-                  </Button>
-                </div>
-              </Card>
-            </div>
-          </div>
+        <SaveViewButton kind="dashboard" filters={{ tags: tagFilter, status: statusFilter, scope, query, groupBy }} />
+      </ViewBar>
+      <ViewBody width={760}>
+        <ViewTitle title="Dashboard" sub={loading ? "loading workspace…" : `${all.length} workflow${all.length === 1 ? "" : "s"} · ${counts.active} active · ${linkMap?.stats.links ?? 0} cross-links`} />
+        <div className="mb-3.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+          <Stat label="Workflows" value={all.length} icon={Network} delay={0} />
+          <Stat label="Active" value={counts.active} icon={Boxes} delay={0.05} />
+          <Stat label="Cross-links" value={linkMap?.stats.links ?? 0} icon={Link2} delay={0.1} />
+          <Stat label="Broken" value={broken} icon={Unplug} delay={0.15} danger />
         </div>
-      </div>
+
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <TagFilter tags={allTags} selected={tagFilter} onChange={setTagFilter} />
+          <Segmented label="Scope" value={scope} options={[{ value: "all", label: "All" }, { value: "mine", label: "Mine" }, { value: "watched", label: "Watched" }]} onChange={setScope} />
+          <Segmented label="Filter workflows by status" value={statusFilter} options={(["all", "active", "paused", "inactive"] as const).map((f) => ({ value: f, label: f }))} onChange={setStatusFilter} />
+          <div className="flex-1" />
+          <label className="flex h-[26px] items-center gap-[7px] rounded-control border border-line bg-hover px-[9px] transition-[border-color] duration-[var(--dur-fast)] focus-within:border-line-strong">
+            <Search aria-hidden="true" className="size-[11px] text-t3" />
+            <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search…" aria-label="Search workflows" className="w-[140px] min-w-0 border-0 bg-transparent text-[11px] text-t1 outline-none placeholder:text-t3" />
+          </label>
+          <span className="tabular font-mono text-[9px] text-t3">{filtered.length}</span>
+        </div>
+
+        <RowCard delay={0.18}>
+          {loading && (
+            <div role="status" aria-label="Loading workflows" className="flex flex-col gap-2 p-3">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <div key={i} aria-hidden="true" className="h-[38px] animate-pulse rounded-row bg-hover motion-reduce:animate-none" />
+              ))}
+            </div>
+          )}
+          {!loading && filtered.length === 0 && (
+            <p className="px-4 py-10 text-center text-[12px] text-t3">
+              {nothingConnected ? (
+                <>
+                  No workflows yet —{" "}
+                  <Link href="/settings/connections" className="font-semibold text-t1 underline-offset-4 hover:underline">
+                    connect a platform
+                  </Link>{" "}
+                  to pull them in.
+                </>
+              ) : all.length === 0 ? (
+                "Nothing synced yet — try Sync now in Settings."
+              ) : (
+                "No workflows match"
+              )}
+            </p>
+          )}
+          {!loading &&
+            groups.map((g) => {
+              const isCollapsed = collapsed.has(g.id);
+              return (
+                <section key={g.id} aria-label={g.label}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCollapsed((c) => {
+                        const n = new Set(c);
+                        if (n.has(g.id)) n.delete(g.id);
+                        else n.add(g.id);
+                        return n;
+                      })
+                    }
+                    aria-expanded={!isCollapsed}
+                    className="sticky top-0 z-[1] flex w-full cursor-pointer items-center gap-2 border-b border-line2 bg-panel/95 px-3.5 py-1.5 text-left backdrop-blur-[6px]"
+                  >
+                    <ChevronDown aria-hidden="true" className={`size-3 text-t3 transition-transform duration-[var(--dur-fast)] ${isCollapsed ? "-rotate-90" : ""}`} />
+                    <span className="text-[11px] font-semibold text-t1">{g.label}</span>
+                    {g.sub && <span className="text-[10px] text-t3">{g.sub}</span>}
+                    <span className="tabular rounded-[5px] border border-line bg-hover px-1.5 py-0.5 font-mono text-[9px] text-t2">{g.items.length}</span>
+                  </button>
+                  {!isCollapsed &&
+                    g.items.map((w) => {
+                      const k = byKey.get(`${w.provider}:${w.refId}`);
+                      return <WorkflowRow key={`${g.id}|${w.provider}:${w.refId}`} workflow={w} tags={k?.tags} lastRun={k?.lastRun} changed={k?.changed} accountName={accountOf.get(w.connectionId)} />;
+                    })}
+                </section>
+              );
+            })}
+        </RowCard>
+      </ViewBody>
     </div>
   );
 }

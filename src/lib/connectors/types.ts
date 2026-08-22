@@ -48,17 +48,25 @@ export interface WorkflowData {
   meta: WorkflowMeta;
 }
 
-export interface DetailPanelProps {
-  data: unknown | null;
-  loading: boolean;
-  error?: boolean;
-  onClose: () => void;
-  /** "Find all uses" for one of the node's referenced assets. */
-  onFindUses?: (ref: { kind: string; value: string; label?: string | null }) => void;
-  /** Structural issues on the selected node (from the workflow summary). */
-  issues?: import("@/app/lib/api").Issue[];
-  /** Comment target key for the selected node ("node:{provider}:{wf}:{node}"). */
-  commentTarget?: string;
+/** What the inspector shows above the tabs, extracted from a node detail payload. */
+export interface NodeDescription {
+  title: string;
+  app: string;
+  kindLabel: string; // "module" | "trigger" | "step" …
+  summary?: string | null;
+  ordinal?: string | null;
+  waitText?: string | null;
+  assets?: import("@/app/lib/api").AssetRef[];
+  filterName?: string | null;
+}
+
+/**
+ * Body of the node inspector's Info tab — provider-specific sections only
+ * (identity, filter, mapper, attributes…). The shared parts (what it does,
+ * issues, assets, comments, runs) are rendered by NodeInspector itself.
+ */
+export interface DetailSectionsProps {
+  data: unknown;
 }
 
 /** Minimal connection info descriptors need (avoids importing the store). */
@@ -66,6 +74,8 @@ export interface ConnectionRef {
   id: string; // backend uuid, or "legacy:{provider}:{externalId}"
   externalId: string;
   label: string | null;
+  /** Account name to show (never a bare id when the API resolved one). */
+  displayName?: string;
 }
 
 export interface NavItem {
@@ -108,7 +118,10 @@ export interface ConnectorDescriptor {
   /** Load everything the workflow page needs (canvas summary + header meta). */
   loadWorkflow(id: string): Promise<WorkflowData>;
   fetchNodeDetail(workflowId: string, nodeId: NodeId): Promise<unknown>;
-  DetailPanel: ComponentType<DetailPanelProps>;
+  /** Provider-specific "raw config" sections for a node detail payload. */
+  DetailSections: ComponentType<DetailSectionsProps>;
+  /** Normalise a node detail payload to the fields the inspector header needs. */
+  describeNode(data: unknown): NodeDescription;
   headerStats(data: WorkflowData): { label: string; value: string }[];
 
   /**

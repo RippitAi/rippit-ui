@@ -66,14 +66,16 @@ function CommandDialog({
 
 function CommandInput({
   className,
+  wrapperClassName,
+  hideIcon,
   ...props
-}: React.ComponentProps<typeof CommandPrimitive.Input>) {
+}: React.ComponentProps<typeof CommandPrimitive.Input> & { wrapperClassName?: string; hideIcon?: boolean }) {
   return (
     <div
       data-slot="command-input-wrapper"
-      className="flex h-11 items-center gap-2 border-b border-line2 px-3.5"
+      className={cn("flex h-11 items-center gap-2 border-b border-line2 px-3.5", wrapperClassName)}
     >
-      <SearchIcon aria-hidden="true" className="size-3.5 shrink-0 text-t3" />
+      {!hideIcon && <SearchIcon aria-hidden="true" className="size-3.5 shrink-0 text-t3" />}
       <CommandPrimitive.Input
         data-slot="command-input"
         className={cn(

@@ -3,7 +3,7 @@ import {
   fetchGhlStepDetail,
   fetchGhlWorkflowSummary,
 } from "@/app/lib/api";
-import StepDetailPanel from "@/components/connectors/ghl/StepDetailPanel";
+import StepDetailSections, { describeGhlStep } from "@/components/connectors/ghl/StepDetailPanel";
 import type { ConnectorDescriptor } from "./types";
 
 export const ghlConnector: ConnectorDescriptor = {
@@ -32,7 +32,7 @@ export const ghlConnector: ConnectorDescriptor = {
   },
 
   async fetchTree(conn) {
-    const location = conn.label || conn.externalId;
+    const location = conn.displayName || conn.label || conn.externalId;
     const rows = await fetchConnectionWorkflows(conn.id);
     const item = (w: (typeof rows)[number]) => ({
       refId: w.external_id,
@@ -88,7 +88,8 @@ export const ghlConnector: ConnectorDescriptor = {
     return fetchGhlStepDetail(workflowId, String(nodeId));
   },
 
-  DetailPanel: StepDetailPanel,
+  DetailSections: StepDetailSections,
+  describeNode: describeGhlStep,
 
   headerStats({ summary }) {
     const triggers = summary.modules.filter((m) => m.kind === "trigger").length;

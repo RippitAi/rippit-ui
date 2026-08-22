@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, X } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import type { Tag, WorkflowMeta, ExecutionsResponse, LastRun } from "@/app/lib/api";
 import type { ProviderId } from "@/lib/connectors/types";
 import { getConnector } from "@/lib/connectors";
@@ -12,13 +12,12 @@ import { LastRunChip } from "@/components/shared/RunsPanel";
 import { KvRow, Section } from "@/components/shared/DetailPanelKit";
 
 /*
- * Workflow "Info" inspector: everything that used to crowd the header —
- * owner, watch, tags, stats, issues summary, last run, open-in, linked set.
+ * Workflow "Info" dock body: owner, watch, tags, health, stats, open-in,
+ * linked set. Rendered inside DockHost by the workflow page.
  */
-export function InfoPanel({
+export function InfoBody({
   provider,
   externalId,
-  name,
   stats,
   issueCounts,
   nativeUrl,
@@ -29,11 +28,9 @@ export function InfoPanel({
   onMetaChange,
   lastRun,
   linkMapLastRun,
-  onClose,
 }: {
   provider: ProviderId;
   externalId: string;
-  name: string;
   stats: { label: string; value: string }[];
   issueCounts: { error: number; warn: number; info: number };
   nativeUrl: string | null;
@@ -44,22 +41,10 @@ export function InfoPanel({
   onMetaChange: (m: WorkflowMeta | ((m: WorkflowMeta | null) => WorkflowMeta | null)) => void;
   lastRun: ExecutionsResponse["executions"][number] | null;
   linkMapLastRun?: LastRun;
-  onClose: () => void;
 }) {
   const connector = getConnector(provider);
   return (
-    <aside
-      role="dialog"
-      aria-label="Workflow info"
-      className="absolute bottom-3 right-3 top-3 z-[3] flex w-[360px] max-w-[calc(100%-24px)] flex-col rounded-card border border-line bg-pill shadow-[0_16px_40px_var(--ambient)]"
-    >
-      <header className="flex items-center gap-2 border-b border-line2 px-3.5 py-2.5">
-        <h2 className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">{name}</h2>
-        <button type="button" onClick={onClose} aria-label="Close info" className="flex size-6 items-center justify-center rounded-control border border-line text-t3 hover:text-t1">
-          <X aria-hidden="true" className="size-3" />
-        </button>
-      </header>
-      <div className="min-h-0 flex-1 overflow-auto px-3.5 py-3">
+    <div className="px-3.5 py-3">
         <Section title="Team">
           <div className="flex flex-wrap items-center gap-2">
             <OwnerChip provider={provider} externalId={externalId} meta={meta} onChange={(m) => onMetaChange(m)} />
@@ -111,7 +96,6 @@ export function InfoPanel({
             )}
           </div>
         </Section>
-      </div>
-    </aside>
+    </div>
   );
 }

@@ -120,7 +120,7 @@ export function ConnectionsProvider({
   const loadTree = useCallback((conn: Connection) => {
     setTreeStatus((s) => ({ ...s, [conn.id]: "loading" }));
     getConnector(conn.provider)
-      .fetchTree({ id: conn.id, externalId: conn.externalId, label: conn.label })
+      .fetchTree({ id: conn.id, externalId: conn.externalId, label: conn.label, displayName: conn.displayName })
       .then((groups) => {
         setTrees((t) => ({ ...t, [conn.id]: groups }));
         setTreeStatus((s) => ({ ...s, [conn.id]: "ready" }));

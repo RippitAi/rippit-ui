@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
-import { motion } from "framer-motion";
-import { Check, Copy, X } from "lucide-react";
+import { useState } from "react";
+import { Check, Copy } from "lucide-react";
 
 export const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -112,115 +111,5 @@ export function CopyJsonButton({ data }: { data: unknown }) {
         <Copy aria-hidden="true" className="size-2.5" />
       )}
     </button>
-  );
-}
-
-/**
- * Floating detail-panel chrome shared by every node-detail view.
- *
- * Non-modal dialog: the canvas behind it stays interactive, so there is no
- * focus trap — but focus moves into the panel on open and returns to the
- * previously focused element (e.g. the canvas node) on close.
- */
-export function DetailPanelShell({
-  title,
-  subtitle,
-  glyph,
-  color,
-  loading,
-  error,
-  onClose,
-  children,
-}: {
-  title: string;
-  subtitle: string;
-  glyph: string;
-  color: string;
-  loading: boolean;
-  error?: boolean;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  const titleId = useId();
-  const closeRef = useRef<HTMLButtonElement>(null);
-  const restoreRef = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    restoreRef.current =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-    closeRef.current?.focus();
-    return () => restoreRef.current?.focus();
-  }, []);
-
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape" && !e.defaultPrevented) onClose();
-    }
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [onClose]);
-
-  return (
-    <motion.aside
-      role="dialog"
-      aria-labelledby={titleId}
-      aria-busy={loading}
-      initial={{ opacity: 0, x: 26 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 26 }}
-      transition={{ duration: 0.4, ease: EASE }}
-      // Opaque on purpose — backdrop-filter over the 3D-transformed canvas
-      // hits a Chrome compositing bug that can blank the panel's contents.
-      className="absolute bottom-3 right-3 top-3 z-[3] flex w-[360px] max-w-[calc(100vw-24px)] flex-col overflow-hidden rounded-card border border-line bg-pill shadow-[0_12px_34px_var(--shade)]"
-    >
-      {/* header */}
-      <div className="flex items-center gap-[11px] border-b border-line2 px-4 pb-3 pt-3.5">
-        <div
-          aria-hidden="true"
-          className="flex size-[38px] flex-none items-center justify-center rounded-[11px] border border-white/25 font-mono text-[12px] font-bold text-white shadow-[0_4px_12px_var(--shade)]"
-          style={{
-            background: `linear-gradient(180deg, color-mix(in oklab, ${color} 55%, #000), color-mix(in oklab, ${color} 42%, #000))`,
-          }}
-        >
-          {glyph}
-        </div>
-        <div className="flex min-w-0 flex-1 flex-col gap-[2px]">
-          <h2 id={titleId} className="truncate text-[14.5px] font-semibold">
-            {loading ? "Loading…" : error ? "Couldn’t load details" : title}
-          </h2>
-          <div className="truncate text-[10.5px] text-t3">{subtitle}</div>
-        </div>
-        <button
-          ref={closeRef}
-          onClick={onClose}
-          aria-label="Close details"
-          className="flex size-[30px] flex-none cursor-pointer items-center justify-center rounded-control border border-line-strong text-t3 transition-colors hover:border-t1 hover:text-t1"
-        >
-          <X aria-hidden="true" className="size-3.5" />
-        </button>
-      </div>
-
-      {/* content */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3.5">
-        {loading ? (
-          <div role="status" className="flex items-center justify-center py-12">
-            <div
-              aria-hidden="true"
-              className="size-6 animate-spin rounded-full border-2 border-t1 border-t-transparent motion-reduce:animate-none"
-            />
-            <span className="sr-only">Loading details</span>
-          </div>
-        ) : error ? (
-          <p role="alert" className="py-8 text-center text-[12px] text-t2">
-            The details for this step couldn’t be fetched. Close the panel and
-            try again.
-          </p>
-        ) : (
-          children
-        )}
-      </div>
-    </motion.aside>
   );
 }

@@ -5,7 +5,7 @@ import {
   fetchScenarioSummary,
   Scenario,
 } from "@/app/lib/api";
-import ModuleDetailPanel from "@/components/connectors/make/ModuleDetailPanel";
+import ModuleDetailSections, { describeMakeModule } from "@/components/connectors/make/ModuleDetailPanel";
 import type { ConnectorDescriptor } from "./types";
 
 export const makeConnector: ConnectorDescriptor = {
@@ -58,7 +58,7 @@ export const makeConnector: ConnectorDescriptor = {
     return [
       {
         id: `org:${conn.externalId}`,
-        label: `Make · ${conn.label || conn.externalId}`,
+        label: `Make · ${conn.displayName || conn.label || conn.externalId}`,
         items: hierarchy.teams.flatMap((team) =>
           team.unfolderedScenarios.map((s) => item(s, team.name, null))
         ),
@@ -98,7 +98,8 @@ export const makeConnector: ConnectorDescriptor = {
     return fetchModuleDetail(parseInt(workflowId), Number(nodeId));
   },
 
-  DetailPanel: ModuleDetailPanel,
+  DetailSections: ModuleDetailSections,
+  describeNode: describeMakeModule,
 
   headerStats({ summary, meta }) {
     const lastEdit = meta.lastEdit;

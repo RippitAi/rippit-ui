@@ -1,12 +1,19 @@
 "use client";
 
-import { ArrowUpRight, Search } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpRight, Link2 } from "lucide-react";
 import type { AssetRef } from "@/app/lib/api";
 import { Section } from "@/components/shared/DetailPanelKit";
 
+/** Route of the asset page: every use across workflows + open in native app. */
+export function assetHref(kind: string, value: string): string {
+  return `/assets/${encodeURIComponent(kind)}/${encodeURIComponent(value)}`;
+}
+
 /*
- * "Assets" block shared by every node detail panel: name · kind · Open ↗
- * (Tier-1 deep link when the API derived one) · Find uses (tracing).
+ * "Assets" block shared by every node inspector: name (→ asset page with every
+ * use across workflows) · kind · Open ↗ (Tier-1 deep link when the API
+ * derived one; never for hashed webhooks/endpoints).
  * Values for sensitive kinds arrive hashed + masked from the API; we show
  * the label and never the raw value.
  */
@@ -41,55 +48,55 @@ export function AssetsSection({
   onFindUses,
 }: {
   assets: AssetRef[] | undefined;
+  /** Legacy hook — when given, the name calls this instead of navigating. */
   onFindUses?: (ref: { kind: string; value: string; label?: string | null }) => void;
 }) {
   if (!assets || assets.length === 0) return null;
   return (
-    <Section title={`Assets · ${assets.length}`}>
+    <Section title={`Assets (${assets.length})`}>
       <ul className="flex flex-col">
-        {assets.map((a) => (
-          <li
-            key={`${a.kind}:${a.value}`}
-            className="flex items-center justify-between gap-3 border-b border-line2 px-0.5 py-[8px]"
-          >
-            <div className="min-w-0">
-              <div className="truncate text-[11.5px] text-t1">
-                {a.label || kindLabel(a.kind)}
-                {a.dynamic && (
-                  <span className="ml-1.5 rounded-full border border-line px-1.5 py-[1px] text-[9px] text-t3">
-                    mapped at runtime
-                  </span>
-                )}
+        {assets.map((a) => {
+          const name = a.label || kindLabel(a.kind);
+          const nameEl = a.dynamic ? (
+            <span className="truncate text-[11.5px] text-t1">{name}</span>
+          ) : onFindUses ? (
+            <button type="button" onClick={() => onFindUses({ kind: a.kind, value: a.value, label: a.label })} className="truncate text-left text-[11.5px] text-t1 hover:underline" title="All uses across workflows">
+              {name}
+            </button>
+          ) : (
+            <Link href={assetHref(a.kind, a.value)} className="truncate text-[11.5px] text-t1 hover:underline" title="All uses across workflows">
+              {name}
+            </Link>
+          );
+          return (
+            <li key={`${a.kind}:${a.value}`} className="flex items-center gap-2 border-b border-line2 px-0.5 py-[7px]">
+              <Link2 aria-hidden="true" className="size-[11px] flex-none text-t3" />
+              <div className="flex min-w-0 flex-1 flex-col">
+                {nameEl}
+                <span className="truncate text-[9.5px] text-t3">
+                  {kindLabel(a.kind)}
+                  {a.dynamic ? " · mapped at runtime" : ""}
+                </span>
               </div>
-              <div className="truncate text-[10px] text-t3">{kindLabel(a.kind)}</div>
-            </div>
-            <div className="flex shrink-0 items-center gap-1">
-              {!a.dynamic && onFindUses && (
-                <button
-                  type="button"
-                  onClick={() => onFindUses({ kind: a.kind, value: a.value, label: a.label })}
-                  aria-label={`Find all uses of ${a.label || kindLabel(a.kind)}`}
-                  title="Find all uses"
-                  className="flex size-6 items-center justify-center rounded-control border border-line text-t3 transition-colors hover:border-t1 hover:text-t1"
-                >
-                  <Search aria-hidden="true" className="size-3" />
-                </button>
-              )}
-              {a.url && (
+              {a.url ? (
                 <a
                   href={a.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label={`Open ${a.label || kindLabel(a.kind)} in its native app`}
-                  title="Open ↗"
-                  className="flex size-6 items-center justify-center rounded-control border border-line text-t3 transition-colors hover:border-t1 hover:text-t1"
+                  aria-label={`Open ${name} in its native app`}
+                  title="Open the asset itself in a new tab"
+                  className="inline-flex flex-none items-center gap-[3px] text-[10px] text-t2 transition-colors hover:text-t1"
                 >
-                  <ArrowUpRight aria-hidden="true" className="size-3" />
+                  open <ArrowUpRight aria-hidden="true" className="size-[9px]" />
                 </a>
+              ) : (
+                <span className="flex-none text-[9.5px] text-t3" title="No native link for this asset kind (webhooks and endpoints are stored hashed)">
+                  —
+                </span>
               )}
-            </div>
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
     </Section>
   );

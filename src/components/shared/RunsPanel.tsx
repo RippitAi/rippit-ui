@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RefreshCw, X } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { Execution, ExecutionsResponse, fetchExecutions, NodeId } from "@/app/lib/api";
 import type { ProviderId } from "@/lib/connectors/types";
 
@@ -49,16 +49,14 @@ export function LastRunChip({ status, at }: { status: Execution["status"]; at: s
   );
 }
 
-export function RunsPanel({
+export function RunsBody({
   provider,
   externalId,
-  onClose,
   onSelectNode,
   onData,
 }: {
   provider: ProviderId;
   externalId: string;
-  onClose: () => void;
   onSelectNode?: (nodeId: NodeId) => void;
   onData?: (data: ExecutionsResponse) => void;
 }) {
@@ -98,36 +96,18 @@ export function RunsPanel({
   const failures = data?.executions.filter((e) => e.status === "error" || e.status === "incomplete").length ?? 0;
 
   return (
-    <aside
-      role="dialog"
-      aria-label="Recent runs"
-      className="absolute bottom-3 right-3 top-3 z-[3] flex w-[360px] max-w-[calc(100%-24px)] flex-col rounded-card border border-line bg-pill shadow-[0_16px_40px_var(--ambient)]"
-    >
-      <header className="flex items-center gap-2 border-b border-line2 px-3.5 py-2.5">
-        <h2 className="text-[12.5px] font-semibold">Recent runs</h2>
-        {data && (
-          <span className="text-[10.5px] text-t3">
-            {data.executions.length} · {failures} failed
-          </span>
-        )}
-        <div className="flex-1" />
+    <>
+      <div className="flex flex-none items-center gap-2 border-b border-line2 px-3.5 py-1.5 text-[10.5px] text-t3">
+        {data ? <span>{data.executions.length} runs · {failures} failed</span> : <span>Loading…</span>}
         <button
           type="button"
           onClick={() => setGen((g) => g + 1)}
           aria-label="Refresh runs from the platform"
-          className="flex size-6 items-center justify-center rounded-control border border-line text-t3 hover:text-t1"
+          className="ml-auto flex size-6 items-center justify-center rounded-control border border-line text-t3 hover:text-t1"
         >
-          <RefreshCw aria-hidden="true" className={`size-3 ${data?.refreshing ? "animate-spin" : ""}`} />
+          <RefreshCw aria-hidden="true" className={`size-3 ${data?.refreshing ? "spin" : ""}`} />
         </button>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close runs"
-          className="flex size-6 items-center justify-center rounded-control border border-line text-t3 hover:text-t1"
-        >
-          <X aria-hidden="true" className="size-3" />
-        </button>
-      </header>
+      </div>
       <div className="min-h-0 flex-1 overflow-auto p-2">
         {error && (
           <p role="alert" className="px-1.5 text-[11px] text-err-text">
@@ -186,9 +166,9 @@ export function RunsPanel({
           })}
         </ul>
       </div>
-      <footer className="border-t border-line2 px-3.5 py-1.5 text-[10px] text-t3">
+      <p className="flex-none border-t border-line2 px-3.5 py-1.5 text-[10px] text-t3">
         {data?.fetchedAt ? `As of ${relativeTime(data.fetchedAt)} · status, timing and failing step only — never run data` : "Status, timing and failing step only — never run data"}
-      </footer>
-    </aside>
+      </p>
+    </>
   );
 }

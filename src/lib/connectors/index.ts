@@ -30,6 +30,11 @@ export function providerLabel(id: ProviderId): string {
   return CONNECTORS[id].label;
 }
 
+/** "Make · Acme Org" — platform + account, never a bare id when one is known. */
+export function connectionTitle(conn: { provider: ProviderId; displayName?: string; label?: string | null; externalId: string }): string {
+  return `${CONNECTORS[conn.provider].shortLabel} · ${conn.displayName || conn.label || conn.externalId}`;
+}
+
 /**
  * Tooltip copy for canvas node badges. Badges reference the platform a node
  * talks to, so the copy is resolved centrally rather than per-descriptor.

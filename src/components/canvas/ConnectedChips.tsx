@@ -1,85 +1,74 @@
 "use client";
 
-import { useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import Link from "next/link";
 import type { LinkMap } from "@/app/lib/api";
 import { linksFor, workflowHref, WorkflowRef } from "@/lib/portals";
-import { providerColor } from "@/lib/connectors";
+import { CONNECTORS } from "@/lib/connectors";
+import { AppPuck } from "@/components/shared/AppPuck";
+
+const CAP = 6;
 
 /*
- * Always-visible row of connected workflows for the focused canvas view —
- * the same destinations as the on-canvas portal chips, but reachable even
- * when a portal is off-screen. Click → navigate.
+ * Row of connected workflows under the action bar — the same destinations
+ * as the on-canvas portal chips, reachable even when a portal is off-screen.
+ * Warn accent = linked, err accent = the link is broken. Capped at 6 with a
+ * "+N" expander so a hub workflow never pushes the canvas down.
  */
-export function ConnectedChips({
-  linkMap,
-  self,
-}: {
-  linkMap: LinkMap | null;
-  self: WorkflowRef;
-}) {
-  const router = useRouter();
-
+export function ConnectedChips({ linkMap, self, className = "" }: { linkMap: LinkMap | null; self: WorkflowRef; className?: string }) {
+  const [all, setAll] = useState(false);
   const targets = useMemo(() => {
     if (!linkMap) return [];
-    const seen = new Map<
-      string,
-      { ref: WorkflowRef; name: string; dead: boolean; direction: "in" | "out" }
-    >();
+    const seen = new Map<string, { ref: WorkflowRef; name: string; dead: boolean; direction: "in" | "out" }>();
     for (const link of linksFor(linkMap, self)) {
-      const outgoing =
-        link.from.source === self.source && link.from.refId === self.refId;
+      const outgoing = link.from.source === self.source && link.from.refId === self.refId;
       const other = outgoing ? link.to : link.from;
       const key = `${other.source}:${other.refId}`;
-      const name =
-        linkMap.workflows.find(
-          (w) => w.source === other.source && w.refId === other.refId
-        )?.name || key;
+      const name = linkMap.workflows.find((w) => w.source === other.source && w.refId === other.refId)?.name || key;
       const prev = seen.get(key);
-      seen.set(key, {
-        ref: { source: other.source, refId: other.refId },
-        name,
-        dead: prev?.dead || link.status === "dead",
-        direction: outgoing ? "out" : "in",
-      });
+      seen.set(key, { ref: { source: other.source, refId: other.refId }, name, dead: prev?.dead || link.status === "dead", direction: outgoing ? "out" : "in" });
     }
-    return [...seen.values()];
+    return [...seen.values()].sort((a, b) => Number(b.dead) - Number(a.dead));
   }, [linkMap, self]);
 
   if (targets.length === 0) return null;
+  const shown = all ? targets : targets.slice(0, CAP);
 
   return (
-    <div className="flex max-w-full flex-wrap items-center gap-1.5">
-      <span className="text-[10px] font-semibold text-t3">
-        Connected ({targets.length})
-      </span>
-      {targets.map((t) => {
-        const accentText = t.dead ? "var(--err-text)" : "var(--warn-text)";
-        const accentGraphic = t.dead ? "var(--err)" : "var(--warn)";
+    <div className={`flex flex-none flex-wrap items-center gap-2 border-b border-line2 px-3 py-2 ${className}`}>
+      <span className="text-[10px] font-semibold text-t3">Connected ({targets.length})</span>
+      {shown.map((t) => {
+        const accent = t.dead ? "var(--err)" : "var(--warn)";
+        const conn = CONNECTORS[t.ref.source];
         return (
-          <button
+          <Link
             key={`${t.ref.source}:${t.ref.refId}`}
-            onClick={() => router.push(workflowHref(t.ref))}
+            href={workflowHref(t.ref)}
             aria-label={`${t.direction === "out" ? "Calls" : "Called by"} ${t.name}${t.dead ? " (link broken)" : ""} — open workflow`}
-            className="flex cursor-pointer items-center gap-1.5 rounded-full border bg-glass px-2.5 py-1 text-[10px] font-semibold backdrop-blur-[8px] transition-transform hover:-translate-y-px"
+            className="flex items-center gap-1.5 rounded-full border px-2.5 py-[3px] text-[10.5px] font-semibold transition-[border-color,transform] duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:-translate-y-px"
             style={{
-              borderColor: `color-mix(in srgb, ${accentGraphic} 45%, transparent)`,
-              color: accentText,
+              borderColor: `color-mix(in srgb, ${accent} 45%, transparent)`,
+              background: `color-mix(in srgb, ${accent} 9%, var(--pill))`,
+              color: t.dead ? "var(--err-text)" : "var(--warn-text)",
             }}
           >
-            <span
-              aria-hidden="true"
-              className="size-[6px] rounded-[2px]"
-              style={{ background: providerColor(t.ref.source) }}
-            />
+            <AppPuck app={conn.id} color={conn.brandColor} glyph={conn.glyph} size={15} />
+            <span className="text-t3">{conn.shortLabel} :</span>
             <span className="max-w-[180px] truncate">{t.name}</span>
-            {t.dead && <span>· broken</span>}
-            <span aria-hidden="true">
-              {t.direction === "out" ? "→" : "←"}
-            </span>
-          </button>
+            <span aria-hidden="true">{t.direction === "out" ? "→" : "←"}</span>
+            {t.dead && <span>broken</span>}
+          </Link>
         );
       })}
+      {targets.length > CAP && (
+        <button
+          type="button"
+          onClick={() => setAll((a) => !a)}
+          className="rounded-full border border-line px-2 py-[3px] text-[10px] font-semibold text-t3 transition-colors hover:border-line-strong hover:text-t1"
+        >
+          {all ? "show fewer" : `+${targets.length - CAP} more`}
+        </button>
+      )}
     </div>
   );
 }

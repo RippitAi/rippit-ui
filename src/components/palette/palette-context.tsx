@@ -16,10 +16,19 @@ import type { NodeId } from "@/app/lib/api";
  * entries while that page is open.
  */
 
+export interface PaletteAction {
+  id: string;
+  label: string;
+  hint?: string;
+  run: () => void;
+}
+
 export interface PaletteScope {
   label: string;
   nodes: { id: NodeId; label: string }[];
   onSelect: (id: NodeId) => void;
+  /** Page-level actions shown first in the hub (e.g. "Watch this workflow"). */
+  actions?: PaletteAction[];
 }
 
 interface PaletteCtx {

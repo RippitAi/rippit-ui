@@ -21,7 +21,6 @@ import { mintPairingCode, PairingCode } from "@/app/lib/api";
 import { useAuth } from "@/components/app/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useConnections } from "@/components/app/ConnectionsProvider";
 import {
   ConnectorCatalog,
@@ -29,6 +28,7 @@ import {
 } from "@/components/connect/ConnectorCatalog";
 import { getConnector } from "@/lib/connectors";
 import { StatusPill } from "@/components/shared/StatusPill";
+import { ViewBar } from "@/components/views/ViewFrame";
 import type { Connection } from "@/app/lib/connections-store";
 
 function ConnectionRow({
@@ -45,14 +45,16 @@ function ConnectionRow({
   const connector = getConnector(connection.provider);
   const [confirming, setConfirming] = useState(false);
   const [removing, setRemoving] = useState(false);
-  const name = connection.label || connection.externalId;
+  const name = connection.displayName || connection.label || connection.externalId;
 
   return (
     <div className="flex items-center gap-3 border-b border-line2 px-4 py-3.5 last:border-b-0">
       <ConnectorGlyph connector={connector} size={34} />
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-2 text-[12.5px] font-semibold">
-          <span className="truncate">{name}</span>
+          <span className="truncate">
+            {connector.shortLabel} · {name}
+          </span>
           <StatusPill
             pill={
               connection.status === "active"
@@ -64,7 +66,8 @@ function ConnectionRow({
           />
         </p>
         <p className="truncate font-mono text-[10px] text-t3">
-          {connector.label} · {connection.externalId}
+          {connector.nouns.container} id {connection.externalId}
+          {connection.accountName && connection.label && connection.accountName !== connection.label ? ` · ${connection.accountName}` : ""}
           {connection.authType === "oauth" && " · via OAuth (names & status only)"}
           {connection.authType === "extension" && " · via extension"}
           {connection.lastSyncedAt &&
@@ -485,14 +488,8 @@ export default function ConnectionsPage() {
   }, [refresh, extensionOpen]);
 
   return (
-    <div className="flex h-full flex-col">
-      <header className="flex h-[52px] flex-none items-center gap-3 border-b border-line px-4">
-        <SidebarTrigger className="text-t3 hover:text-t1" />
-        <div className="h-4 w-px bg-line" aria-hidden="true" />
-        <h1 className="text-[13.5px] font-semibold tracking-[-0.01em]">
-          Settings
-        </h1>
-      </header>
+    <div className="flex h-full min-w-0 flex-col">
+      <ViewBar title="Settings" meta={`${connections.length} connection${connections.length === 1 ? "" : "s"}`} />
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4 lg:p-5">
         <div className="mx-auto flex max-w-2xl flex-col gap-6">

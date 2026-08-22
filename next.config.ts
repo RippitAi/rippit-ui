@@ -14,6 +14,12 @@ const nextConfig: NextConfig = {
         destination: "/w/ghl/:id",
         permanent: false,
       },
+      // v2 shell: the unified map lives at /map (query string carries over)
+      {
+        source: "/unified",
+        destination: "/map",
+        permanent: false,
+      },
     ];
   },
 };

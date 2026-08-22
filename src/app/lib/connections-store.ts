@@ -12,6 +12,10 @@ export interface Connection {
   provider: ProviderId;
   externalId: string; // Make org id | GHL location id
   label: string | null;
+  /** Provider account name (Make org / GHL location name) — resolved at sync. */
+  accountName: string | null;
+  /** label ?? accountName ?? externalId. Always safe to render. */
+  displayName: string;
   status: "active" | "needs_reauth" | "error";
   lastSyncedAt: string | null;
   /** "extension" | "oauth" | "api_token" — how this connection authenticates. */
@@ -24,6 +28,8 @@ function fromBackend(c: BackendConnectionRow): Connection {
     provider: c.provider as ProviderId,
     externalId: c.external_id,
     label: c.label,
+    accountName: c.account_name ?? null,
+    displayName: c.display_name || c.label || c.account_name || c.external_id,
     status: (c.status as Connection["status"]) || "active",
     lastSyncedAt: c.last_synced_at,
     authType: c.auth_type,

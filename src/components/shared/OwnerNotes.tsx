@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bell, BellOff, StickyNote, UserCircle2, X } from "lucide-react";
+import { Bell, BellOff, UserCircle2 } from "lucide-react";
 import { fetchMembers, fetchWorkflowMeta, putWorkflowMeta, setWatch, WorkspaceMember, WorkflowMeta } from "@/app/lib/api";
 import { useWorkspace } from "@/components/app/WorkspaceProvider";
 import type { ProviderId } from "@/lib/connectors/types";
@@ -127,33 +127,22 @@ export function WatchToggle({
   );
 }
 
-export function NotesPanel({
+export function NotesBody({
   provider,
   externalId,
   meta,
   onChange,
-  onClose,
 }: {
   provider: ProviderId;
   externalId: string;
   meta: WorkflowMeta | null;
   onChange: (m: WorkflowMeta) => void;
-  onClose: () => void;
 }) {
   const [draft, setDraft] = useState(meta?.notes ?? "");
   const [saving, setSaving] = useState(false);
   const dirty = draft !== (meta?.notes ?? "");
   return (
-    <aside role="dialog" aria-label="Notes" className="absolute bottom-3 right-3 top-3 z-[3] flex w-[380px] max-w-[calc(100%-24px)] flex-col rounded-card border border-line bg-pill shadow-[0_16px_40px_var(--ambient)]">
-      <header className="flex items-center gap-2 border-b border-line2 px-3.5 py-2.5">
-        <StickyNote aria-hidden="true" className="size-3.5 text-t3" />
-        <h2 className="text-[12.5px] font-semibold">Notes</h2>
-        <span className="text-[10.5px] text-t3">pinned runbook · shared with the workspace</span>
-        <div className="flex-1" />
-        <button type="button" onClick={onClose} aria-label="Close notes" className="flex size-6 items-center justify-center rounded-control border border-line text-t3 hover:text-t1">
-          <X aria-hidden="true" className="size-3" />
-        </button>
-      </header>
+    <>
       <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
         <textarea
           value={draft}
@@ -181,6 +170,6 @@ export function NotesPanel({
           </button>
         </div>
       </div>
-    </aside>
+    </>
   );
 }

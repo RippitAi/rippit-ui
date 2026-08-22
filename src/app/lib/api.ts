@@ -227,6 +227,14 @@ export function fetchComments(q: { target?: string; prefix?: string }): Promise<
   return apiFetch(`/comments?${qs.toString()}`);
 }
 
+/** Open comment threads that @mention the signed-in user (for the rail badge + /mentions). */
+export function fetchMentions(): Promise<{ comments: Comment[]; counts: CommentCounts }> {
+  return apiFetch("/comments?mentionsMe=1&open=1");
+}
+export function fetchMentionCount(): Promise<number> {
+  return fetchMentions().then((d) => d.comments.length);
+}
+
 export function createComment(input: { targetType: CommentTargetType; targetKey: string; body: string; parentId?: string | null }): Promise<Comment> {
   return apiPost<Comment>(`/comments`, input);
 }
@@ -539,6 +547,31 @@ export interface AssetRef {
   meta?: Record<string, unknown>;
 }
 
+/** One row of the assets registry (GET /assets). */
+export interface AssetIndexEntry {
+  kind: string;
+  value: string;
+  label: string | null;
+  url: string | null;
+  workflows: number;
+  uses: number;
+  providers: ProviderId[];
+}
+
+export function fetchAssets(q: { kind?: string; q?: string; limit?: number } = {}): Promise<{ assets: AssetIndexEntry[]; kinds: Record<string, number>; total: number }> {
+  const p = new URLSearchParams();
+  if (q.kind) p.set("kind", q.kind);
+  if (q.q) p.set("q", q.q);
+  if (q.limit) p.set("limit", String(q.limit));
+  const qs = p.toString();
+  return apiFetch(`/assets${qs ? `?${qs}` : ""}`);
+}
+
+/** Rail badge counts (GET /me/badges). */
+export function fetchBadges(): Promise<{ unread: number; mentions: number }> {
+  return apiFetch("/me/badges");
+}
+
 export interface RefUse {
   provider: ProviderId;
   connectionId: string;
@@ -548,7 +581,10 @@ export interface RefUse {
   workflowStatus: string | null;
   isActive: boolean | null;
   nodeId: string | null;
-  dynamic: boolean;
+  dynamic: boolean;  /** Enrichment from the node index (when available). */
+  nodeLabel?: string | null;
+  ordinal?: string | null;
+  app?: string | null;
 }
 
 export interface RefUses {
@@ -694,6 +730,10 @@ export interface BackendConnectionRow {
   status: string;
   last_synced_at: string | null;
   auth_type?: string;
+  /** Provider account name (Make organization / GHL location), when resolved. */
+  account_name?: string | null;
+  /** label ?? account_name ?? external_id — what to call this connection. */
+  display_name?: string;
 }
 
 /** GET /connectors — provider catalog incl. alternative connect paths. */
