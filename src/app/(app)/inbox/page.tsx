@@ -35,7 +35,7 @@ export default function InboxPage() {
         <ViewBar title="Needs you" />
         <ViewBody>
           {!item ? (
-            <p className="text-[12px] text-t3">{loading ? "Loading…" : "This item is no longer waiting on you."}</p>
+            <p className="text-[13px] text-t3">{loading ? "Loading…" : "This item is no longer waiting on you."}</p>
           ) : (
             <div key={item.key}>
               <DetailHeader
@@ -48,12 +48,12 @@ export default function InboxPage() {
                 openLabel={item.action}
               />
               <DetailCard title="Why it needs you">
-                <p className="m-0 text-[12px] leading-[1.6] text-t1">{item.reason}</p>
+                <p className="m-0 text-[13px] leading-[1.6] text-t1">{item.reason}</p>
               </DetailCard>
               {item.group === "broken" && item.issues && isPid(item.provider) && (
                 <DetailCard>
                   <IssuesSection issues={item.issues} />
-                  <p className="m-0 text-[10.5px] text-t3">Each issue links to the failing step from the canvas — open it above.</p>
+                  <p className="m-0 text-[11.5px] text-t3">Each issue links to the failing step from the canvas — open it above.</p>
                 </DetailCard>
               )}
               {item.group === "changed" && isPid(item.provider) && (
@@ -88,7 +88,7 @@ export default function InboxPage() {
         <ViewTitle title="Needs you" sub={loading ? "checking the estate…" : total === 0 ? "nothing waiting · everything else is running clean" : `${total} item${total === 1 ? "" : "s"} · everything else is running clean`} />
         {!connLoading && connections.length === 0 && (
           <RowCard>
-            <p className="px-4 py-6 text-center text-[12px] text-t2">
+            <p className="px-4 py-6 text-center text-[13px] text-t2">
               Nothing connected yet.{" "}
               <Link href="/settings/connections" className="font-semibold text-t1 underline-offset-4 hover:underline">
                 Connect a platform
@@ -108,12 +108,12 @@ export default function InboxPage() {
                   <span className="inline-flex" style={{ color }}>
                     <Icon aria-hidden="true" className="size-[13px]" />
                   </span>
-                  <h3 className="m-0 text-[12px] font-semibold">{g.label}</h3>
-                  <span className="tabular font-mono text-[9px] text-t3">{g.items.length}</span>
+                  <h3 className="m-0 text-[13px] font-semibold">{g.label}</h3>
+                  <span className="tabular font-mono text-[10px] text-t3">{g.items.length}</span>
                 </div>
-                <p className="mb-2 ml-5 mt-0 text-[10px] text-t3">{g.blurb}</p>
+                <p className="mb-2 ml-5 mt-0 text-[11px] text-t3">{g.blurb}</p>
                 <RowCard>
-                  {g.items.length === 0 && <p className="px-3.5 py-3 text-[11px] italic text-t3">{loading ? "Loading…" : "Nothing here."}</p>}
+                  {g.items.length === 0 && <p className="px-3.5 py-3 text-[12px] italic text-t3">{loading ? "Loading…" : "Nothing here."}</p>}
                   {g.items.map((it) => {
                     const conn = isProviderId(it.provider) ? CONNECTORS[it.provider] : null;
                     return (
@@ -121,13 +121,13 @@ export default function InboxPage() {
                         <span aria-hidden="true" className="h-9 w-[6px] flex-none rounded-[3px]" style={{ background: bar }} />
                         <AppPuck app={conn?.id ?? it.provider} color={conn?.brandColor} glyph={conn?.glyph} size={22} />
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[11.5px] font-semibold text-t1">{it.card?.name ?? `${conn?.shortLabel ?? it.provider} ${it.refId}`}</span>
-                          <span className="mt-[1px] block text-[10px] leading-[1.45] text-t2">
+                          <span className="block truncate text-[12.5px] font-semibold text-t1">{it.card?.name ?? `${conn?.shortLabel ?? it.provider} ${it.refId}`}</span>
+                          <span className="mt-[1px] block text-[11px] leading-[1.45] text-t2">
                             {it.reason}
                             {it.when ? <span className="text-t3"> · {relativeTime(it.when)}</span> : null}
                           </span>
                         </span>
-                        <Link href={it.href} className="inline-flex h-[26px] flex-none items-center rounded-control border border-line-strong px-2.5 text-[11px] font-semibold text-t2 transition-colors hover:border-t1 hover:text-t1">
+                        <Link href={it.href} className="inline-flex h-[26px] flex-none items-center rounded-control border border-line-strong px-2.5 text-[12px] font-semibold text-t2 transition-colors hover:border-t1 hover:text-t1">
                           {it.action}
                         </Link>
                       </div>

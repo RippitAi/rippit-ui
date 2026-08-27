@@ -29,7 +29,7 @@ export function SaveViewButton({
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="inline-flex items-center gap-1.5 rounded-control border border-line-strong px-2.5 py-1 text-[11px] font-semibold text-t2 hover:text-t1"
+        className="inline-flex items-center gap-1.5 rounded-control border border-line-strong px-2.5 py-1 text-[12px] font-semibold text-t2 hover:text-t1"
         title="Save the current filters as a shared view"
       >
         <Bookmark aria-hidden="true" className="size-3" />
@@ -60,9 +60,9 @@ export function SaveViewButton({
             placeholder="View name (e.g. Client A · broken)"
             aria-label="View name"
             maxLength={60}
-            className="min-w-0 flex-1 rounded-control border border-line bg-pill px-2 py-1 text-[11.5px] text-t1 placeholder:text-t3"
+            className="min-w-0 flex-1 rounded-control border border-line bg-pill px-2 py-1 text-[12.5px] text-t1 placeholder:text-t3"
           />
-          <button type="submit" disabled={!name.trim() || busy} className="rounded-control border border-line px-2 py-1 text-[11px] font-semibold text-t2 hover:text-t1 disabled:opacity-50">
+          <button type="submit" disabled={!name.trim() || busy} className="rounded-control border border-line px-2 py-1 text-[12px] font-semibold text-t2 hover:text-t1 disabled:opacity-50">
             Save
           </button>
         </form>

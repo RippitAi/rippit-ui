@@ -122,9 +122,9 @@ export default function MapPage() {
     return (
       <div className="flex h-full items-center justify-center p-4">
         <div className="w-full max-w-md rounded-card border border-line bg-panel p-6 text-center shadow-[var(--shadow-card)] backdrop-blur-[14px] anim-fade-up">
-          <h1 className="mb-1.5 text-[14px] font-semibold">Nothing connected yet</h1>
-          <p className="mb-4 text-[12px] text-t2">The system map shows how your automations link across platforms. Connect Make or HighLevel to populate it.</p>
-          <Link href="/settings/connections" className="text-[12px] font-semibold text-t1 underline-offset-4 hover:underline">
+          <h1 className="mb-1.5 text-[15px] font-semibold">Nothing connected yet</h1>
+          <p className="mb-4 text-[13px] text-t2">The system map shows how your automations link across platforms. Connect Make or HighLevel to populate it.</p>
+          <Link href="/settings/connections" className="text-[13px] font-semibold text-t1 underline-offset-4 hover:underline">
             Open Settings
           </Link>
         </div>
@@ -138,7 +138,7 @@ export default function MapPage() {
   return (
     <div className="flex h-full min-w-0 flex-col">
       <div className="flex h-[46px] flex-none items-center gap-2.5 border-b border-line px-3">
-        <h1 className="text-[12.5px] font-semibold tracking-[-0.01em]">System map</h1>
+        <h1 className="text-[13.5px] font-semibold tracking-[-0.01em]">System map</h1>
         <div className="flex-1" />
         {mode === "workflows" && (
           <>
@@ -163,8 +163,8 @@ export default function MapPage() {
             graphCurrent.data.groups.length === 0 || tooMany ? (
               <div className="flex h-full items-center justify-center p-4">
                 <div className="max-w-md rounded-card border border-line bg-panel p-6 text-center shadow-[var(--shadow-card)] anim-fade-up">
-                  <h2 className="mb-1.5 text-[14px] font-semibold">{graphCurrent.data.groups.length === 0 ? "No linked set to show" : "Pick a linked set"}</h2>
-                  <p className="text-[12px] text-t2">
+                  <h2 className="mb-1.5 text-[15px] font-semibold">{graphCurrent.data.groups.length === 0 ? "No linked set to show" : "Pick a linked set"}</h2>
+                  <p className="text-[13px] text-t2">
                     {graphCurrent.data.groups.length === 0
                       ? "The node-level view composes workflows that call each other. Open a workflow with cross-platform links and use “View linked set”, or connect more platforms."
                       : `${graphCurrent.data.groups.length} linkable workflows is too many to read at node level. Open one of them and use “View linked set” to see just its neighbourhood.`}
@@ -173,7 +173,7 @@ export default function MapPage() {
                     <ul className="mt-3 flex max-h-[40vh] flex-wrap justify-center gap-1.5 overflow-auto">
                       {graphCurrent.data.groups.map((g) => (
                         <li key={g.id}>
-                          <Link href={workflowHref({ source: g.source, refId: g.refId })} className="flex items-center gap-1.5 rounded-full border border-line bg-pill px-2.5 py-1 text-[10px] font-semibold text-t2 hover:text-t1">
+                          <Link href={workflowHref({ source: g.source, refId: g.refId })} className="flex items-center gap-1.5 rounded-full border border-line bg-pill px-2.5 py-1 text-[11px] font-semibold text-t2 hover:text-t1">
                             <span aria-hidden="true" className="size-[7px] rounded-[2px]" style={{ background: providerColor(g.source) }} />
                             <span className="max-w-[200px] truncate">{g.name}</span>
                           </Link>
@@ -195,7 +195,7 @@ export default function MapPage() {
           <Legend />
         </div>
         {mode === "workflows" && focus.length > 0 && (
-          <button type="button" onClick={() => router.push(`/map?mode=nodes&focus=${encodeURIComponent(focusKey)}`)} className="absolute left-3 top-3 z-[2] rounded-full border border-line bg-glass px-2.5 py-1 text-[10px] font-semibold text-t2 backdrop-blur-[8px] hover:text-t1">
+          <button type="button" onClick={() => router.push(`/map?mode=nodes&focus=${encodeURIComponent(focusKey)}`)} className="absolute left-3 top-3 z-[2] rounded-full border border-line bg-glass px-2.5 py-1 text-[11px] font-semibold text-t2 backdrop-blur-[8px] hover:text-t1">
             Show this linked set at node level →
           </button>
         )}

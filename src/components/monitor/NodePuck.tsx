@@ -114,7 +114,7 @@ export function NodePuck({
             }}
           >
             <div
-              className="absolute inset-0 flex items-center justify-center rounded-node border border-white/40 font-mono text-[15px] font-extrabold tracking-[.3px] text-white"
+              className="absolute inset-0 flex items-center justify-center rounded-node border border-white/40 font-mono text-[16px] font-extrabold tracking-[.3px] text-white"
               style={{
                 background: onColorGradient(col),
                 boxShadow: tileShadow,
@@ -136,7 +136,7 @@ export function NodePuck({
           </div>
           <div className="flex flex-col items-center gap-[3px]">
             <div
-              className="whitespace-nowrap rounded-full bg-pill px-3 py-1 text-[13px] font-semibold text-t1"
+              className="whitespace-nowrap rounded-full bg-pill px-3 py-1 text-[14px] font-semibold text-t1"
               style={{
                 border: `1px solid ${selected ? ring : status === "ok" ? "var(--line)" : sc.dot}`,
                 boxShadow: "0 4px 14px var(--shade)",
@@ -144,7 +144,7 @@ export function NodePuck({
             >
               {node.name}
             </div>
-            <div className="whitespace-nowrap text-[10.5px] text-t2">
+            <div className="whitespace-nowrap text-[11.5px] text-t2">
               {node.sub} ·{" "}
               <span
                 className="font-mono"

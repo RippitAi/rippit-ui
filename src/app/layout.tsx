@@ -26,7 +26,7 @@ export default function RootLayout({
       <body className="antialiased">
         <a
           href="#main"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-control focus:border focus:border-line-strong focus:bg-panel focus:px-3 focus:py-2 focus:text-[12px] focus:font-semibold focus:text-t1"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-control focus:border focus:border-line-strong focus:bg-panel focus:px-3 focus:py-2 focus:text-[13px] focus:font-semibold focus:text-t1"
         >
           Skip to main content
         </a>

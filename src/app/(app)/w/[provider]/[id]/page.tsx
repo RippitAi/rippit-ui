@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, use } from "react";
 import { useRouter, useSearchParams, notFound } from "next/navigation";
 import Link from "next/link";
-import { Activity, History, Info, MessageSquare, NotebookPen } from "lucide-react";
+import { Activity, HeartPulse, History, Info, MessageSquare, NotebookPen } from "lucide-react";
 import { fetchExecutions, fetchComments, fetchWorkflowChanges, markWorkflowSeen, setWatch } from "@/app/lib/api";
 import type { ExecutionsResponse, Issue, NodeId, Tag, WorkflowChanges } from "@/app/lib/api";
 import { getConnector, isProviderId } from "@/lib/connectors";
@@ -17,6 +17,7 @@ import { ActionBar, type DockTool } from "@/components/canvas/ActionBar";
 import { ConnectedChips } from "@/components/canvas/ConnectedChips";
 import { DockHost, DockTitle } from "@/components/canvas/DockHost";
 import { NodeInspector } from "@/components/canvas/NodeInspector";
+import { HealthBody } from "@/components/canvas/HealthBody";
 import { StatusLine } from "@/components/canvas/StatusLine";
 import { Legend } from "@/components/canvas/Legend";
 import { LoadingState } from "@/components/shared/LoadingState";
@@ -178,6 +179,10 @@ export default function WorkflowPage({ params }: { params: Promise<{ provider: s
     ]);
   }, [runs, provider, id]);
 
+  // Everything the Health dock lists: structural issues from the sync plus
+  // the failing-module issue from the latest run, worst handled by the dock.
+  const healthIssues = useMemo(() => [...runtimeIssueByNode.values(), ...(data?.summary.issues ?? [])], [data, runtimeIssueByNode]);
+
   const canvasData = useMemo(() => {
     if (!data) return null;
     const base = withPortals(data.summary, linkMap, self);
@@ -306,7 +311,7 @@ export default function WorkflowPage({ params }: { params: Promise<{ provider: s
 
   const { summary, meta } = data;
   const nativeUrl = summary.nativeUrl ?? connector.nativeUrl?.(id) ?? null;
-  const issueCounts = (summary.issues ?? []).reduce((acc, i) => ({ ...acc, [i.severity]: acc[i.severity] + 1 }), { error: 0, warn: 0, info: 0 });
+  const issueCounts = healthIssues.reduce((acc, i) => ({ ...acc, [i.severity]: acc[i.severity] + 1 }), { error: 0, warn: 0, info: 0 });
   const lastRun = runs?.executions?.[0] ?? null;
   const linkMapLastRun = myCard?.lastRun;
   const lastRunAt = lastRun?.startedAt ?? linkMapLastRun?.at ?? null;
@@ -351,6 +356,12 @@ export default function WorkflowPage({ params }: { params: Promise<{ provider: s
         onToggleWatch={toggleWatch}
         meta={metaLine || null}
         tools={[
+          {
+            id: "health",
+            label: "Health — issues & failing steps",
+            badge: issueCounts.error + issueCounts.warn > 0 ? issueCounts.error + issueCounts.warn : lastRunStatus === "error" || lastRunStatus === "incomplete" ? "!" : null,
+            tone: issueCounts.error > 0 || lastRunStatus === "error" || lastRunStatus === "incomplete" ? "err" : "warn",
+          },
           { id: "info", label: "Info — owner, tags, stats", badge: wfTags && wfTags.length > 0 ? wfTags.length : null, tone: "t1" },
           { id: "changes", label: "Changes", badge: changes && changes.unseen > 0 ? changes.unseen : null, tone: "warn" },
           { id: "comments", label: "Comments", badge: wfOpenComments > 0 ? wfOpenComments : null, tone: "t1" },
@@ -366,7 +377,7 @@ export default function WorkflowPage({ params }: { params: Promise<{ provider: s
       />
 
       {needsReauth && (
-        <div role="status" className="flex flex-none items-center gap-2 border-b border-line2 px-3 py-1.5 text-[11px] text-warn-text" style={{ background: "color-mix(in srgb, var(--warn) 8%, transparent)" }}>
+        <div role="status" className="flex flex-none items-center gap-2 border-b border-line2 px-3 py-1.5 text-[12px] text-warn-text" style={{ background: "color-mix(in srgb, var(--warn) 8%, transparent)" }}>
           This connection’s session expired — data shown is from the last successful sync.
           <Link href="/settings/connections" className="font-semibold underline-offset-2 hover:underline">
             Reconnect →
@@ -396,11 +407,11 @@ export default function WorkflowPage({ params }: { params: Promise<{ provider: s
           {summary.stepsUnavailable && (
             <div className="pointer-events-none absolute inset-0 z-[2] flex items-center justify-center p-4">
               <div className="pointer-events-auto max-w-md rounded-card border border-line bg-panel p-5 text-center shadow-[var(--shadow-card)] backdrop-blur-[14px]">
-                <h2 className="mb-1.5 text-[13px] font-semibold">Steps unavailable via OAuth</h2>
-                <p className="text-[12px] text-t2">
+                <h2 className="mb-1.5 text-[14px] font-semibold">Steps unavailable via OAuth</h2>
+                <p className="text-[13px] text-t2">
                   HighLevel&apos;s official API returns workflow names and status only. Connect this location with the Rippit Chrome extension to see its steps, triggers and links here.
                 </p>
-                <Link href="/settings/connections" className="mt-3 inline-block text-[12px] font-semibold underline-offset-4 hover:underline">
+                <Link href="/settings/connections" className="mt-3 inline-block text-[13px] font-semibold underline-offset-4 hover:underline">
                   Open Settings → Connections
                 </Link>
               </div>
@@ -425,6 +436,30 @@ export default function WorkflowPage({ params }: { params: Promise<{ provider: s
               commentCount={commentCounts[String(selectedModule.id)] ?? 0}
               onCommentsChanged={(open) => setCommentCounts((c) => ({ ...c, [String(selectedModule.id)]: open }))}
             />
+          )}
+          {tool === "health" && (
+            <DockHost
+              label="Workflow health"
+              dockKey="health"
+              onClose={closeTool}
+              header={
+                <DockTitle
+                  icon={<HeartPulse className="size-3.5" />}
+                  title="Health"
+                  subtitle={issueCounts.error + issueCounts.warn > 0 ? `${issueCounts.error} error${issueCounts.error === 1 ? "" : "s"} · ${issueCounts.warn} warning${issueCounts.warn === 1 ? "" : "s"}` : "no issues detected"}
+                />
+              }
+            >
+              <HealthBody
+                issues={healthIssues}
+                modules={summary.modules}
+                lastRun={lastRunAt ? { status: lastRunStatus ?? "unknown", at: lastRunAt } : null}
+                onSelectNode={(n) => {
+                  const match = summary.modules.find((m) => String(m.id) === String(n));
+                  if (match) selectNode(match.id);
+                }}
+              />
+            </DockHost>
           )}
           {tool === "info" && (
             <DockHost label="Workflow info" dockKey="info" onClose={closeTool} header={<DockTitle icon={<Info className="size-3.5" />} title={summary.name} subtitle={accountTitle} />}>

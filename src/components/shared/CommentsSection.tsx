@@ -62,7 +62,7 @@ function MentionInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         rows={2}
-        className="w-full resize-y rounded-control border border-line bg-pill px-2.5 py-1.5 text-[11.5px] text-t1 placeholder:text-t3"
+        className="w-full resize-y rounded-control border border-line bg-pill px-2.5 py-1.5 text-[12.5px] text-t1 placeholder:text-t3"
       />
       {suggestions.length > 0 && (
         <ul aria-label="Mention suggestions" className="absolute left-0 top-full z-20 mt-1 w-[240px] rounded-card border border-line bg-panel p-1 shadow-[0_12px_30px_var(--ambient)]">
@@ -74,10 +74,10 @@ function MentionInput({
                   e.preventDefault();
                   pick(m);
                 }}
-                className="flex w-full items-center gap-2 rounded-control px-2 py-1 text-left text-[11.5px] hover:bg-hover"
+                className="flex w-full items-center gap-2 rounded-control px-2 py-1 text-left text-[12.5px] hover:bg-hover"
               >
                 <span className="truncate">{m.display_name || m.email}</span>
-                {m.display_name && <span className="truncate text-[10px] text-t3">{m.email}</span>}
+                {m.display_name && <span className="truncate text-[11px] text-t3">{m.email}</span>}
               </button>
             </li>
           ))}
@@ -163,9 +163,9 @@ export function CommentsThread({
 
   return (
     <div className="flex flex-col gap-2">
-      {error && <p role="alert" className="text-[11px] text-err-text">{error}</p>}
+      {error && <p role="alert" className="text-[12px] text-err-text">{error}</p>}
       {comments && comments.length === 0 && (
-        <p className="text-[11px] text-t3">No comments yet — start the thread below.</p>
+        <p className="text-[12px] text-t3">No comments yet — start the thread below.</p>
       )}
       <ul className="flex flex-col gap-2">
         {threads.map(({ root, replies }) => (
@@ -187,7 +187,7 @@ export function CommentsThread({
                   setReplyTo(root.id);
                   inputRef.current?.focus();
                 }}
-                className="mt-1.5 inline-flex items-center gap-1 text-[10px] text-t3 hover:text-t1"
+                className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-t3 hover:text-t1"
               >
                 <CornerDownRight aria-hidden="true" className="size-3" /> reply
               </button>
@@ -197,7 +197,7 @@ export function CommentsThread({
       </ul>
       <div className="flex flex-col gap-1">
         {replyTo && (
-          <div className="flex items-center gap-2 text-[10px] text-t3">
+          <div className="flex items-center gap-2 text-[11px] text-t3">
             Replying in thread
             <button type="button" onClick={() => setReplyTo(null)} className="underline-offset-2 hover:underline">
               cancel
@@ -212,12 +212,12 @@ export function CommentsThread({
           inputRef={inputRef}
         />
         <div className="flex items-center justify-between">
-          <span className="text-[10px] text-t3">Visible to everyone in this workspace</span>
+          <span className="text-[11px] text-t3">Visible to everyone in this workspace</span>
           <button
             type="button"
             onClick={submit}
             disabled={!draft.trim()}
-            className="rounded-control border border-line px-2.5 py-1 text-[11px] font-semibold text-t2 hover:text-t1 disabled:opacity-50"
+            className="rounded-control border border-line px-2.5 py-1 text-[12px] font-semibold text-t2 hover:text-t1 disabled:opacity-50"
           >
             {replyTo ? "Reply" : "Comment"}
           </button>
@@ -242,13 +242,13 @@ function CommentBody({
   return (
     <div>
       <div className="flex items-center gap-2">
-        <span className="text-[11px] font-semibold text-t1">{c.authorName || "Someone"}</span>
-        <span className="text-[10px] text-t3" title={new Date(c.createdAt).toLocaleString()}>
+        <span className="text-[12px] font-semibold text-t1">{c.authorName || "Someone"}</span>
+        <span className="text-[11px] text-t3" title={new Date(c.createdAt).toLocaleString()}>
           {relativeTime(c.createdAt)}
           {c.editedAt ? " · edited" : ""}
         </span>
         {c.resolvedAt && (
-          <span className="rounded-full border border-line px-1.5 py-[1px] text-[9px] font-semibold text-ok-text">resolved</span>
+          <span className="rounded-full border border-line px-1.5 py-[1px] text-[10px] font-semibold text-ok-text">resolved</span>
         )}
         <span className="ml-auto flex items-center gap-1.5">
           {resolvable && canModerate && (
@@ -287,7 +287,7 @@ function CommentBody({
           )}
         </span>
       </div>
-      <p className="mt-0.5 whitespace-pre-wrap break-words text-[11.5px] text-t1">{renderMentions(c.body)}</p>
+      <p className="mt-0.5 whitespace-pre-wrap break-words text-[12.5px] text-t1">{renderMentions(c.body)}</p>
     </div>
   );
 }

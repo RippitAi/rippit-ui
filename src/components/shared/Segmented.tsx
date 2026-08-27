@@ -23,7 +23,7 @@ export function Segmented<T extends string>({
       value={value}
       onValueChange={(v) => v && onChange(v as T)}
       aria-label={label}
-      className="flex items-center overflow-hidden rounded-full border border-line-strong text-[10px] font-semibold"
+      className="flex items-center overflow-hidden rounded-full border border-line-strong text-[11px] font-semibold"
     >
       {options.map((o) => (
         <ToggleGroup.Item

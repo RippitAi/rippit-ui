@@ -56,7 +56,7 @@ function CommandDialog({
             <DialogDescription>{description}</DialogDescription>
           </VisuallyHidden.Root>
         </DialogHeader>
-        <Command className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:tracking-[0.02em] [&_[cmdk-group-heading]]:text-t3">
+        <Command className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:tracking-[0.02em] [&_[cmdk-group-heading]]:text-t3">
           {children}
         </Command>
       </DialogContent>
@@ -79,7 +79,7 @@ function CommandInput({
       <CommandPrimitive.Input
         data-slot="command-input"
         className={cn(
-          "flex h-10 w-full bg-transparent py-3 text-[13px] outline-hidden placeholder:text-t3 disabled:cursor-not-allowed disabled:opacity-50",
+          "flex h-10 w-full bg-transparent py-3 text-[14px] outline-hidden placeholder:text-t3 disabled:cursor-not-allowed disabled:opacity-50",
           className
         )}
         {...props}
@@ -110,7 +110,7 @@ function CommandEmpty({
   return (
     <CommandPrimitive.Empty
       data-slot="command-empty"
-      className="py-6 text-center text-[12px] text-t3"
+      className="py-6 text-center text-[13px] text-t3"
       {...props}
     />
   )
@@ -150,7 +150,7 @@ function CommandItem({
     <CommandPrimitive.Item
       data-slot="command-item"
       className={cn(
-        "relative flex cursor-pointer select-none items-center gap-2.5 rounded-row px-2.5 py-2 text-[12.5px] outline-hidden data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-[selected=true]:bg-hover data-[selected=true]:text-t1",
+        "relative flex cursor-pointer select-none items-center gap-2.5 rounded-row px-2.5 py-2 text-[13.5px] outline-hidden data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-[selected=true]:bg-hover data-[selected=true]:text-t1",
         className
       )}
       {...props}
@@ -166,7 +166,7 @@ function CommandShortcut({
     <span
       data-slot="command-shortcut"
       className={cn(
-        "ml-auto font-mono text-[9.5px] tracking-widest text-t3",
+        "ml-auto font-mono text-[10.5px] tracking-widest text-t3",
         className
       )}
       {...props}

@@ -30,7 +30,7 @@ export function WorkflowsRail({
       transition={{ duration: 0.55, ease: EASE, delay: 0.05 }}
       className="absolute bottom-3 left-3 top-3 z-[3] flex w-[252px] flex-col overflow-hidden rounded-card border border-line bg-panel shadow-[0_12px_34px_var(--shade)] backdrop-blur-[14px]"
     >
-      <h2 className="px-4 pb-2 pt-3.5 text-[10.5px] font-semibold text-t3">
+      <h2 className="px-4 pb-2 pt-3.5 text-[11.5px] font-semibold text-t3">
         Workflows
       </h2>
       <div className="flex flex-col gap-1 px-2">
@@ -58,13 +58,13 @@ export function WorkflowsRail({
                   }}
                 />
                 <span className="sr-only">{ST[st].label} —</span>
-                <span className="flex-1 truncate text-[12px] font-semibold">
+                <span className="flex-1 truncate text-[13px] font-semibold">
                   {w.name}
                 </span>
-                <span className="font-mono text-[9.5px] text-t3">{w.ops}</span>
+                <span className="font-mono text-[10.5px] text-t3">{w.ops}</span>
               </div>
               <div className="flex items-end justify-between gap-2">
-                <span className="text-[10px] text-t3">{w.plats}</span>
+                <span className="text-[11px] text-t3">{w.plats}</span>
                 <span
                   aria-hidden="true"
                   className="flex h-3.5 items-end gap-[2px]"
@@ -88,7 +88,7 @@ export function WorkflowsRail({
 
       {/* live activity — pinned to bottom */}
       <div className="mt-auto flex flex-col overflow-hidden border-t border-line2">
-        <h2 className="px-4 pb-1.5 pt-3 text-[10.5px] font-semibold text-t3">
+        <h2 className="px-4 pb-1.5 pt-3 text-[11.5px] font-semibold text-t3">
           Live activity
         </h2>
         <div aria-live="off" className="flex flex-col px-2 pb-2.5">
@@ -108,8 +108,8 @@ export function WorkflowsRail({
                   className="size-[5px] flex-none rounded-full"
                   style={{ background: f.c, boxShadow: `0 0 6px ${f.c}` }}
                 />
-                <span className="flex-1 truncate text-[11px] text-t2">{f.t}</span>
-                <span className="flex-none font-mono text-[9px] text-t3">
+                <span className="flex-1 truncate text-[12px] text-t2">{f.t}</span>
+                <span className="flex-none font-mono text-[10px] text-t3">
                   {f.d}
                 </span>
               </motion.div>

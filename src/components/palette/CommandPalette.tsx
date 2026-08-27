@@ -93,7 +93,7 @@ function IconBox({ icon: Icon }: { icon: LucideIcon }) {
   );
 }
 
-const ITEM = "h-9 gap-2.5 rounded-[7px] px-[9px] text-[12.5px] text-t1 data-[selected=true]:bg-hover";
+const ITEM = "h-9 gap-2.5 rounded-[7px] px-[9px] text-[13.5px] text-t1 data-[selected=true]:bg-hover";
 
 export function CommandPalette() {
   const router = useRouter();
@@ -140,7 +140,7 @@ export function CommandPalette() {
     >
       <div className="flex items-center gap-2.5 border-b border-line2 px-3.5">
         <Zap aria-hidden="true" className="size-3.5 flex-none text-t3" />
-        <CommandInput placeholder={scope ? `Act on ${scope.label} — or jump anywhere` : "Jump anywhere — workflows, steps, assets, pages"} value={query} onValueChange={setQuery} className="h-[46px] text-[13px]" wrapperClassName="flex-1 border-0 px-0" hideIcon />
+        <CommandInput placeholder={scope ? `Act on ${scope.label} — or jump anywhere` : "Jump anywhere — workflows, steps, assets, pages"} value={query} onValueChange={setQuery} className="h-[46px] text-[14px]" wrapperClassName="flex-1 border-0 px-0" hideIcon />
         <Kbd>esc</Kbd>
       </div>
       <CommandList className="max-h-[330px] p-1.5">
@@ -160,7 +160,7 @@ export function CommandPalette() {
               >
                 <IconBox icon={Zap} />
                 <span className="flex-1 truncate">{a.label}</span>
-                {a.hint && <CommandShortcut className="font-mono text-[8.5px]">{a.hint}</CommandShortcut>}
+                {a.hint && <CommandShortcut className="font-mono text-[9.5px]">{a.hint}</CommandShortcut>}
               </CommandItem>
             ))}
           </CommandGroup>
@@ -176,8 +176,8 @@ export function CommandPalette() {
                   <CommandItem key={`${h.type}:${h.provider}:${h.workflowExternalId}:${h.nodeId ?? ""}:${h.value ?? ""}`} value={`${query} ${h.type} ${h.label ?? ""} ${h.workflowName ?? ""}`} className={ITEM} onSelect={() => go(hitHref(h))}>
                     <IconBox icon={h.type === "asset" ? Box : Search} />
                     <span className="truncate">{h.label}</span>
-                    <span className="truncate text-[10.5px] text-t3">{h.type === "asset" ? `${kindLabel(h.kind ?? "")} · ${h.workflowName ?? ""}` : `${h.workflowName ?? ""}${h.secondary ? ` · ${h.secondary}` : ""}`}</span>
-                    <CommandShortcut className="font-mono text-[8.5px]">{h.type === "asset" ? "asset" : `${connector?.nouns.step ?? "step"}${h.ordinal ? ` ${h.ordinal}` : ""}`}</CommandShortcut>
+                    <span className="truncate text-[11.5px] text-t3">{h.type === "asset" ? `${kindLabel(h.kind ?? "")} · ${h.workflowName ?? ""}` : `${h.workflowName ?? ""}${h.secondary ? ` · ${h.secondary}` : ""}`}</span>
+                    <CommandShortcut className="font-mono text-[9.5px]">{h.type === "asset" ? "asset" : `${connector?.nouns.step ?? "step"}${h.ordinal ? ` ${h.ordinal}` : ""}`}</CommandShortcut>
                   </CommandItem>
                 );
               })}
@@ -198,7 +198,7 @@ export function CommandPalette() {
               >
                 <IconBox icon={Crosshair} />
                 <span className="truncate">{n.label}</span>
-                <CommandShortcut className="font-mono text-[8.5px]">focus</CommandShortcut>
+                <CommandShortcut className="font-mono text-[9.5px]">focus</CommandShortcut>
               </CommandItem>
             ))}
           </CommandGroup>
@@ -230,7 +230,7 @@ export function CommandPalette() {
               <CommandItem key={`${r.provider}:${r.id}`} value={`recent ${r.name}`} className={ITEM} onSelect={() => go(`/w/${r.provider}/${r.id}`)}>
                 <IconBox icon={Clock3} />
                 <span className="truncate">{r.name}</span>
-                <CommandShortcut className="font-mono text-[8.5px]">{getConnector(r.provider).shortLabel}</CommandShortcut>
+                <CommandShortcut className="font-mono text-[9.5px]">{getConnector(r.provider).shortLabel}</CommandShortcut>
               </CommandItem>
             ))}
           </CommandGroup>
@@ -242,7 +242,7 @@ export function CommandPalette() {
               <CommandItem key={v.id} value={`view ${v.name}`} className={ITEM} onSelect={() => go(`/${v.kind === "unified" ? "map" : "dashboard"}?view=${encodeURIComponent(v.id)}`)}>
                 <IconBox icon={Bookmark} />
                 <span className="truncate">{v.name}</span>
-                <CommandShortcut className="font-mono text-[8.5px]">{v.kind === "unified" ? "map" : "dashboard"}</CommandShortcut>
+                <CommandShortcut className="font-mono text-[9.5px]">{v.kind === "unified" ? "map" : "dashboard"}</CommandShortcut>
               </CommandItem>
             ))}
           </CommandGroup>
@@ -253,8 +253,8 @@ export function CommandPalette() {
             {tags.map((t) => (
               <CommandItem key={t.id} value={`tag ${t.name}`} className={ITEM} onSelect={() => go(`/dashboard?tag=${encodeURIComponent(t.id)}`)}>
                 <TagChip tag={t} size="xs" />
-                <span className="text-[10.5px] text-t3">{t.workflows ?? 0} workflows</span>
-                <CommandShortcut className="font-mono text-[8.5px]">filter</CommandShortcut>
+                <span className="text-[11.5px] text-t3">{t.workflows ?? 0} workflows</span>
+                <CommandShortcut className="font-mono text-[9.5px]">filter</CommandShortcut>
               </CommandItem>
             ))}
           </CommandGroup>
@@ -269,8 +269,8 @@ export function CommandPalette() {
                 <CommandItem key={`${e.provider}:${e.refId}`} value={`${e.name} ${e.groupPath.join(" ")} ${connector.label}`} className={ITEM} onSelect={() => go(workflowHref({ source: e.provider, refId: e.refId }))}>
                   <AppPuck app={e.app || e.provider} size={20} />
                   <span className="truncate">{e.name}</span>
-                  {e.groupPath.length > 0 && <span className="truncate text-[10.5px] text-t3">{e.groupPath.join(" / ")}</span>}
-                  <CommandShortcut className="font-mono text-[8.5px]">{connector.shortLabel}</CommandShortcut>
+                  {e.groupPath.length > 0 && <span className="truncate text-[11.5px] text-t3">{e.groupPath.join(" / ")}</span>}
+                  <CommandShortcut className="font-mono text-[9.5px]">{connector.shortLabel}</CommandShortcut>
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -283,13 +283,13 @@ export function CommandPalette() {
               <CommandItem key={l.key} value={`link ${l.label}`} className={ITEM} onSelect={() => go(workflowHref({ source: l.from.source, refId: l.from.refId }))}>
                 <IconBox icon={l.dead ? ArrowUpRight : Link2} />
                 <span className={`truncate ${l.dead ? "text-err-text" : ""}`}>{l.label}</span>
-                <CommandShortcut className="font-mono text-[8.5px]">{l.dead ? "broken" : l.kind === "subflow" ? "subflow" : "webhook"}</CommandShortcut>
+                <CommandShortcut className="font-mono text-[9.5px]">{l.dead ? "broken" : l.kind === "subflow" ? "subflow" : "webhook"}</CommandShortcut>
               </CommandItem>
             ))}
           </CommandGroup>
         )}
       </CommandList>
-      <div className="flex items-center gap-3 border-t border-line2 px-3.5 py-[7px] font-mono text-[9px] text-t3">
+      <div className="flex items-center gap-3 border-t border-line2 px-3.5 py-[7px] font-mono text-[10px] text-t3">
         <span>↑↓ navigate</span>
         <span>↵ run</span>
         <span className="ml-auto">⌘K</span>

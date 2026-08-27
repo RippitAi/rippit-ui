@@ -36,7 +36,7 @@ export function ConnectedChips({ linkMap, self, className = "" }: { linkMap: Lin
 
   return (
     <div className={`flex flex-none flex-wrap items-center gap-2 border-b border-line2 px-3 py-2 ${className}`}>
-      <span className="text-[10px] font-semibold text-t3">Connected ({targets.length})</span>
+      <span className="text-[11px] font-semibold text-t3">Connected ({targets.length})</span>
       {shown.map((t) => {
         const accent = t.dead ? "var(--err)" : "var(--warn)";
         const conn = CONNECTORS[t.ref.source];
@@ -45,7 +45,7 @@ export function ConnectedChips({ linkMap, self, className = "" }: { linkMap: Lin
             key={`${t.ref.source}:${t.ref.refId}`}
             href={workflowHref(t.ref)}
             aria-label={`${t.direction === "out" ? "Calls" : "Called by"} ${t.name}${t.dead ? " (link broken)" : ""} — open workflow`}
-            className="flex items-center gap-1.5 rounded-full border px-2.5 py-[3px] text-[10.5px] font-semibold transition-[border-color,transform] duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:-translate-y-px"
+            className="flex items-center gap-1.5 rounded-full border px-2.5 py-[3px] text-[11.5px] font-semibold transition-[border-color,transform] duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:-translate-y-px"
             style={{
               borderColor: `color-mix(in srgb, ${accent} 45%, transparent)`,
               background: `color-mix(in srgb, ${accent} 9%, var(--pill))`,
@@ -64,7 +64,7 @@ export function ConnectedChips({ linkMap, self, className = "" }: { linkMap: Lin
         <button
           type="button"
           onClick={() => setAll((a) => !a)}
-          className="rounded-full border border-line px-2 py-[3px] text-[10px] font-semibold text-t3 transition-colors hover:border-line-strong hover:text-t1"
+          className="rounded-full border border-line px-2 py-[3px] text-[11px] font-semibold text-t3 transition-colors hover:border-line-strong hover:text-t1"
         >
           {all ? "show fewer" : `+${targets.length - CAP} more`}
         </button>

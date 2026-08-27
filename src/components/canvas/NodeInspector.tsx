@@ -128,14 +128,14 @@ export function NodeInspector({
         <>
           <span
             aria-hidden="true"
-            className="inline-flex size-8 flex-none items-center justify-center rounded-[8px] border border-white/40 font-mono text-[10px] font-extrabold text-white"
+            className="inline-flex size-8 flex-none items-center justify-center rounded-[8px] border border-white/40 font-mono text-[11px] font-extrabold text-white"
             style={{ background: `color-mix(in oklab, ${color} 52%, #000)` }}
           >
             {loading ? "…" : appGlyph(app)}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[12.5px] font-semibold leading-tight">{loading ? "Loading…" : error ? "Couldn’t load details" : title}</span>
-            <span className="tabular block truncate font-mono text-[8.5px] text-t3">
+            <span className="block truncate text-[13.5px] font-semibold leading-tight">{loading ? "Loading…" : error ? "Couldn’t load details" : title}</span>
+            <span className="tabular block truncate font-mono text-[9.5px] text-t3">
               {connector.nouns.step} {desc?.ordinal ?? module.ordinal ?? nodeKey} · {appName(app)} · {health}
             </span>
           </span>
@@ -153,7 +153,7 @@ export function NodeInspector({
               <TabsTrigger
                 key={v}
                 value={v}
-                className="h-full rounded-[4px] text-[10.5px] font-semibold text-t3 transition-colors duration-[var(--dur-fast)] data-[state=active]:bg-pill data-[state=active]:text-t1 data-[state=active]:shadow-[var(--shadow-card)]"
+                className="h-full rounded-[4px] text-[11.5px] font-semibold text-t3 transition-colors duration-[var(--dur-fast)] data-[state=active]:bg-pill data-[state=active]:text-t1 data-[state=active]:shadow-[var(--shadow-card)]"
               >
                 {l}
               </TabsTrigger>
@@ -168,37 +168,37 @@ export function NodeInspector({
             </div>
           )}
           {error && (
-            <p role="alert" className="py-6 text-center text-[12px] text-t2">
+            <p role="alert" className="py-6 text-center text-[13px] text-t2">
               The details for this {connector.nouns.step} couldn’t be fetched. Close and try again.
             </p>
           )}
           {!loading && !error && (
             <>
               <Section title="What it does">
-                <p className="m-0 text-[11.5px] leading-[1.6] text-t1">
+                <p className="m-0 text-[12.5px] leading-[1.6] text-t1">
                   {desc?.summary || module.summary || `${appName(app)} ${connector.nouns.step}.`}
                   {desc?.filterName || module.filterName ? ` Only continues when ${desc?.filterName || module.filterName}.` : module.hasFilter ? " Has a filter." : ""}
                   {desc?.waitText || module.waitFor?.text ? ` Waits ${desc?.waitText || module.waitFor?.text}.` : ""}
                 </p>
                 {(desc?.ordinal || module.ordinal) && (
-                  <p className="mt-1 font-mono text-[9.5px] text-t3">fires at position {desc?.ordinal || module.ordinal}</p>
+                  <p className="mt-1 font-mono text-[10.5px] text-t3">fires at position {desc?.ordinal || module.ordinal}</p>
                 )}
               </Section>
               <IssuesSection issues={issues} onFindUses={(ref) => router.push(assetHref(ref.kind, ref.value))} />
               <Section title={provider === "make" ? "Runs" : "Runtime"}>
                 {provider !== "make" ? (
-                  <p className="text-[11px] text-t3">Runtime not available for this platform yet.</p>
+                  <p className="text-[12px] text-t3">Runtime not available for this platform yet.</p>
                 ) : !executions ? (
-                  <p className="text-[11px] text-t3">Loading runs…</p>
+                  <p className="text-[12px] text-t3">Loading runs…</p>
                 ) : !executions.supported ? (
-                  <p className="text-[11px] text-t3">{executions.reason ?? "Runtime status not available."}</p>
+                  <p className="text-[12px] text-t3">{executions.reason ?? "Runtime status not available."}</p>
                 ) : executions.executions.length === 0 ? (
-                  <p className="text-[11px] text-t3">No runs in the platform’s retained history.</p>
+                  <p className="text-[12px] text-t3">No runs in the platform’s retained history.</p>
                 ) : (
                   <div className="flex flex-col">
                     {failedHere && (
                       <div className="mb-2 flex items-start gap-2 rounded-row border px-2.5 py-2" style={{ borderColor: "color-mix(in srgb, var(--err) 40%, transparent)", background: "color-mix(in srgb, var(--err) 8%, transparent)" }}>
-                        <p className="m-0 text-[11px] leading-[1.5] text-err-text">
+                        <p className="m-0 text-[12px] leading-[1.5] text-err-text">
                           Last run failed <strong>here</strong>
                           {latest?.errorMessage ? `: ${latest.errorMessage}` : ""}
                         </p>
@@ -207,7 +207,7 @@ export function NodeInspector({
                     <KvRow k="Last run" v={`${latest?.status ?? "—"} · ${relativeTime(latest?.startedAt ?? null)}`} />
                     {latest?.durationMs != null && <KvRow k="Duration" v={`${latest.durationMs} ms`} />}
                     <KvRow k={`Failures · last ${executions.executions.length}`} v={String(failures)} />
-                    <p className="mt-1.5 text-[9.5px] text-t3">Workflow-level — {connector.shortLabel} does not expose per-{connector.nouns.step} timings.</p>
+                    <p className="mt-1.5 text-[10.5px] text-t3">Workflow-level — {connector.shortLabel} does not expose per-{connector.nouns.step} timings.</p>
                   </div>
                 )}
               </Section>
@@ -230,8 +230,8 @@ export function NodeInspector({
                       <Icon aria-hidden="true" className="size-3" />
                     </span>
                     <span className="min-w-0">
-                      <span className="block text-[11.5px] font-semibold text-t1">{a.label}</span>
-                      <span className="block text-[9.5px] leading-[1.4] text-t3">{a.sub}</span>
+                      <span className="block text-[12.5px] font-semibold text-t1">{a.label}</span>
+                      <span className="block text-[10.5px] leading-[1.4] text-t3">{a.sub}</span>
                     </span>
                   </>
                 );

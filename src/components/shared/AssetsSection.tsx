@@ -58,13 +58,13 @@ export function AssetsSection({
         {assets.map((a) => {
           const name = a.label || kindLabel(a.kind);
           const nameEl = a.dynamic ? (
-            <span className="truncate text-[11.5px] text-t1">{name}</span>
+            <span className="truncate text-[12.5px] text-t1">{name}</span>
           ) : onFindUses ? (
-            <button type="button" onClick={() => onFindUses({ kind: a.kind, value: a.value, label: a.label })} className="truncate text-left text-[11.5px] text-t1 hover:underline" title="All uses across workflows">
+            <button type="button" onClick={() => onFindUses({ kind: a.kind, value: a.value, label: a.label })} className="truncate text-left text-[12.5px] text-t1 hover:underline" title="All uses across workflows">
               {name}
             </button>
           ) : (
-            <Link href={assetHref(a.kind, a.value)} className="truncate text-[11.5px] text-t1 hover:underline" title="All uses across workflows">
+            <Link href={assetHref(a.kind, a.value)} className="truncate text-[12.5px] text-t1 hover:underline" title="All uses across workflows">
               {name}
             </Link>
           );
@@ -73,7 +73,7 @@ export function AssetsSection({
               <Link2 aria-hidden="true" className="size-[11px] flex-none text-t3" />
               <div className="flex min-w-0 flex-1 flex-col">
                 {nameEl}
-                <span className="truncate text-[9.5px] text-t3">
+                <span className="truncate text-[10.5px] text-t3">
                   {kindLabel(a.kind)}
                   {a.dynamic ? " · mapped at runtime" : ""}
                 </span>
@@ -85,12 +85,12 @@ export function AssetsSection({
                   rel="noopener noreferrer"
                   aria-label={`Open ${name} in its native app`}
                   title="Open the asset itself in a new tab"
-                  className="inline-flex flex-none items-center gap-[3px] text-[10px] text-t2 transition-colors hover:text-t1"
+                  className="inline-flex flex-none items-center gap-[3px] text-[11px] text-t2 transition-colors hover:text-t1"
                 >
                   open <ArrowUpRight aria-hidden="true" className="size-[9px]" />
                 </a>
               ) : (
-                <span className="flex-none text-[9.5px] text-t3" title="No native link for this asset kind (webhooks and endpoints are stored hashed)">
+                <span className="flex-none text-[10.5px] text-t3" title="No native link for this asset kind (webhooks and endpoints are stored hashed)">
                   —
                 </span>
               )}

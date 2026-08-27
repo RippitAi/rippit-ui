@@ -81,8 +81,8 @@ export default function ResetPasswordPage() {
           >
             <div className="size-3 rounded-full bg-bg" />
           </motion.div>
-          <h1 className="text-[26px] font-bold tracking-[-0.5px]">rippit</h1>
-          <p className="mt-1.5 text-[13px] text-t2">
+          <h1 className="text-[27px] font-bold tracking-[-0.5px]">rippit</h1>
+          <p className="mt-1.5 text-[14px] text-t2">
             {session ? "Set a new password" : "Password reset"}
           </p>
         </div>
@@ -94,13 +94,13 @@ export default function ResetPasswordPage() {
             </div>
           ) : !session ? (
             <div className="space-y-4 text-center">
-              <p role="alert" className="text-[12.5px] leading-relaxed text-t2">
+              <p role="alert" className="text-[13.5px] leading-relaxed text-t2">
                 This reset link is invalid or has expired — they’re single-use
                 and time-limited.
               </p>
               <Link
                 href="/login"
-                className="inline-block text-[12px] font-semibold text-t1 underline-offset-4 hover:underline"
+                className="inline-block text-[13px] font-semibold text-t1 underline-offset-4 hover:underline"
               >
                 Request a new one from the sign-in page
               </Link>
@@ -110,7 +110,7 @@ export default function ResetPasswordPage() {
               <div>
                 <label
                   htmlFor="new-password"
-                  className="mb-1.5 block text-[11px] font-semibold text-t3"
+                  className="mb-1.5 block text-[12px] font-semibold text-t3"
                 >
                   New password
                 </label>
@@ -125,13 +125,13 @@ export default function ResetPasswordPage() {
                   placeholder="At least 8 characters"
                   aria-invalid={error ? true : undefined}
                   aria-describedby={error ? "reset-error" : undefined}
-                  className="h-9 rounded-control border-line-strong bg-hover text-[13px] placeholder:text-t3"
+                  className="h-9 rounded-control border-line-strong bg-hover text-[14px] placeholder:text-t3"
                 />
               </div>
               <div>
                 <label
                   htmlFor="confirm-password"
-                  className="mb-1.5 block text-[11px] font-semibold text-t3"
+                  className="mb-1.5 block text-[12px] font-semibold text-t3"
                 >
                   Confirm password
                 </label>
@@ -145,7 +145,7 @@ export default function ResetPasswordPage() {
                   placeholder="Same again"
                   aria-invalid={error ? true : undefined}
                   aria-describedby={error ? "reset-error" : undefined}
-                  className="h-9 rounded-control border-line-strong bg-hover text-[13px] placeholder:text-t3"
+                  className="h-9 rounded-control border-line-strong bg-hover text-[14px] placeholder:text-t3"
                 />
               </div>
 
@@ -155,7 +155,7 @@ export default function ResetPasswordPage() {
                   id="reset-error"
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="rounded-control border border-[color-mix(in_srgb,var(--err)_32%,transparent)] bg-[color-mix(in_srgb,var(--err)_10%,transparent)] px-3 py-2 text-[12px] text-err-text"
+                  className="rounded-control border border-[color-mix(in_srgb,var(--err)_32%,transparent)] bg-[color-mix(in_srgb,var(--err)_10%,transparent)] px-3 py-2 text-[13px] text-err-text"
                 >
                   {error}
                 </motion.div>
@@ -164,7 +164,7 @@ export default function ResetPasswordPage() {
               <Button
                 type="submit"
                 disabled={busy}
-                className="h-auto w-full cursor-pointer rounded-control py-2.5 text-[12.5px] font-semibold hover:opacity-85 disabled:opacity-50"
+                className="h-auto w-full cursor-pointer rounded-control py-2.5 text-[13.5px] font-semibold hover:opacity-85 disabled:opacity-50"
               >
                 {busy ? "Updating…" : "Set new password"}
                 {!busy && (
@@ -175,7 +175,7 @@ export default function ResetPasswordPage() {
           )}
         </div>
 
-        <p className="mt-6 text-center font-mono text-[10px] text-t3">
+        <p className="mt-6 text-center font-mono text-[11px] text-t3">
           rippit · workflow monitor
         </p>
       </motion.div>

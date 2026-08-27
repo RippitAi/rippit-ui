@@ -40,7 +40,7 @@ export default function ModuleDetailSections({ data }: DetailSectionsProps) {
       {mod.filter && (
         <Section title="Filter">
           {typeof mod.filter === "object" && "name" in mod.filter && (
-            <div className="mb-2 inline-flex rounded-full border border-[color-mix(in_srgb,var(--warn)_32%,transparent)] bg-[color-mix(in_srgb,var(--warn)_10%,transparent)] px-[9px] py-[3px] text-[10px] font-semibold text-warn-text">
+            <div className="mb-2 inline-flex rounded-full border border-[color-mix(in_srgb,var(--warn)_32%,transparent)] bg-[color-mix(in_srgb,var(--warn)_10%,transparent)] px-[9px] py-[3px] text-[11px] font-semibold text-warn-text">
               {String(mod.filter.name)}
             </div>
           )}

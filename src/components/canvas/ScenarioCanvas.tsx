@@ -553,8 +553,8 @@ export default function ScenarioCanvas({
               />
               <div className="pointer-events-none absolute flex -translate-y-1/2 items-center gap-2 rounded-full border border-line bg-pill px-2.5 py-[4px] shadow-[var(--shadow-card)]" style={{ left: g.x + 14, top: g.y }}>
                 <span className="size-[7px] flex-none rounded-[2px]" style={{ background: providerColor(g.source) }} />
-                <span className="max-w-[240px] truncate text-[10.5px] font-semibold text-t1">{g.name}</span>
-                <span className="font-mono text-[8.5px] font-semibold uppercase tracking-wide text-t3">{CONNECTORS[g.source].shortLabel}</span>
+                <span className="max-w-[240px] truncate text-[11.5px] font-semibold text-t1">{g.name}</span>
+                <span className="font-mono text-[9.5px] font-semibold uppercase tracking-wide text-t3">{CONNECTORS[g.source].shortLabel}</span>
               </div>
             </div>
           ))}
@@ -598,7 +598,7 @@ export default function ScenarioCanvas({
               return (
                 <div
                   key={`l${e.key}`}
-                  className="pointer-events-none absolute max-w-[180px] -translate-x-1/2 -translate-y-1/2 truncate rounded-full border px-2 py-[2px] text-[9.5px] font-semibold shadow-[var(--shadow-card)]"
+                  className="pointer-events-none absolute max-w-[180px] -translate-x-1/2 -translate-y-1/2 truncate rounded-full border px-2 py-[2px] text-[10.5px] font-semibold shadow-[var(--shadow-card)]"
                   style={{
                     left: e.mx,
                     top: e.my,
@@ -650,7 +650,9 @@ export default function ScenarioCanvas({
                   }}
                 >
                   <span
-                    className="flex max-w-[160px] items-center gap-1.5 rounded-full border-2 px-[11px] py-[5px] text-[10.5px] font-bold backdrop-blur-[8px] transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] group-hover/portal:-translate-y-[2px]"
+                    className={`flex max-w-[160px] items-center gap-1.5 rounded-full border-2 px-[11px] py-[5px] text-[11.5px] font-bold backdrop-blur-[8px] transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] group-hover/portal:-translate-y-[2px] ${
+                      selected ? "scale-[1.1]" : ""
+                    }`}
                     style={{
                       borderColor: accent,
                       background: `color-mix(in srgb, ${accent} 12%, var(--glass))`,
@@ -661,7 +663,7 @@ export default function ScenarioCanvas({
                     <span aria-hidden="true">↗</span>
                     <span className="truncate">{n.label}</span>
                   </span>
-                  <span className="text-[8.5px] font-semibold uppercase tracking-[.04em] text-t3">
+                  <span className="text-[9.5px] font-semibold uppercase tracking-[.04em] text-t3">
                     {provider}
                     {dead ? " · broken" : ""}
                   </span>
@@ -698,9 +700,15 @@ export default function ScenarioCanvas({
                   animation: enter ? `fadeUp .3s var(--ease-out) ${delay} both` : undefined,
                 }}
               >
-                <span className="relative size-[46px]">
+                {/* Selection scale lives here, not on the wrapper — the entrance
+                    animation's fill:both owns the wrapper's transform. */}
+                <span
+                  className={`relative size-[46px] transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] ${
+                    selected ? "scale-[1.18]" : ""
+                  }`}
+                >
                   <span
-                    className="puck absolute inset-0 flex items-center justify-center rounded-node border border-white/40 font-mono text-[11.5px] font-extrabold text-white transition-[box-shadow] duration-[var(--dur-fast)] ease-[var(--ease-out)]"
+                    className="puck absolute inset-0 flex items-center justify-center rounded-node border border-white/40 font-mono text-[12.5px] font-extrabold text-white transition-[box-shadow] duration-[var(--dur-fast)] ease-[var(--ease-out)]"
                     style={{
                       background: `color-mix(in oklab, ${n.color} 52%, #000)`,
                       boxShadow: `${selected ? "0 0 0 2.5px var(--ringc), " : ""}0 4px 0 color-mix(in oklab, ${n.color} 40%, #000), 0 9px 18px var(--ambient)`,
@@ -727,7 +735,7 @@ export default function ScenarioCanvas({
                     <span
                       aria-hidden="true"
                       title={n.issueText ?? undefined}
-                      className="absolute -bottom-[3px] -left-[3px] flex size-3 items-center justify-center rounded-full border-2 border-plane text-center text-[7.5px] font-bold leading-none text-white"
+                      className="absolute -bottom-[3px] -left-[3px] flex size-3 items-center justify-center rounded-full border-2 border-plane text-center text-[8.5px] font-bold leading-none text-white"
                       style={{ background: `var(${SEVERITY_VAR[n.issueSeverity]})`, boxShadow: `0 0 8px var(${SEVERITY_VAR[n.issueSeverity]})` }}
                     >
                       !
@@ -747,13 +755,13 @@ export default function ScenarioCanvas({
                     <span
                       aria-hidden="true"
                       title={`Fires ${ordinalPhrase(n.ordinal)}`}
-                      className="tabular flex-none rounded-full border border-line bg-pill px-[5px] py-px font-mono text-[8.5px] leading-[1.4] text-t3"
+                      className="tabular flex-none rounded-full border border-line bg-pill px-[5px] py-px font-mono text-[9.5px] leading-[1.4] text-t3"
                     >
                       {n.ordinal}
                     </span>
                   )}
                   <span
-                    className="truncate whitespace-nowrap rounded-full border bg-pill px-2 py-[3px] text-[10px] font-semibold leading-none text-t1"
+                    className="truncate whitespace-nowrap rounded-full border bg-pill px-2 py-[3px] text-[11px] font-semibold leading-none text-t1"
                     style={{ borderColor: selected ? "var(--line-strong)" : "var(--line)" }}
                   >
                     {n.label}
@@ -762,14 +770,14 @@ export default function ScenarioCanvas({
                     <span
                       aria-hidden="true"
                       title={`${n.commentCount} open comment thread${n.commentCount === 1 ? "" : "s"}`}
-                      className="flex-none rounded-full border border-line bg-pill px-[5px] py-px font-mono text-[8.5px] leading-[1.4] text-t2"
+                      className="flex-none rounded-full border border-line bg-pill px-[5px] py-px font-mono text-[9.5px] leading-[1.4] text-t2"
                     >
                       💬 {n.commentCount}
                     </span>
                   ) : null}
                 </span>
                 <span
-                  className="tabular max-w-[150px] truncate whitespace-nowrap font-mono text-[9px] leading-none"
+                  className="tabular max-w-[150px] truncate whitespace-nowrap font-mono text-[10px] leading-none"
                   style={{ color: n.runLine?.failing ? "var(--err-text)" : "var(--t3)" }}
                   title={n.runLine ? n.runLine.text : second}
                 >

@@ -44,7 +44,7 @@ export function TagChip({
     </>
   );
   const cls = `inline-flex max-w-[160px] items-center gap-1.5 rounded-full border px-2 ${
-    size === "xs" ? "py-[1px] text-[9.5px]" : "py-[2px] text-[10px]"
+    size === "xs" ? "py-[1px] text-[10.5px]" : "py-[2px] text-[11px]"
   } font-semibold ${active ? "text-t1" : "text-t2"}`;
   const style = {
     borderColor: active ? accent : `color-mix(in srgb, ${accent} 45%, transparent)`,

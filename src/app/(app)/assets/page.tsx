@@ -49,25 +49,25 @@ export default function AssetsPage() {
       <ViewBar title="Assets" meta={data ? `${data.total} indexed` : undefined}>
         <label className="flex h-[26px] items-center gap-[7px] rounded-control border border-line bg-hover px-[9px] transition-[border-color] duration-[var(--dur-fast)] focus-within:border-line-strong">
           <Search aria-hidden="true" className="size-[11px] text-t3" />
-          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter assets…" aria-label="Filter assets" className="w-[160px] min-w-0 border-0 bg-transparent text-[11px] text-t1 outline-none placeholder:text-t3" />
+          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter assets…" aria-label="Filter assets" className="w-[160px] min-w-0 border-0 bg-transparent text-[12px] text-t1 outline-none placeholder:text-t3" />
         </label>
       </ViewBar>
       <ViewBody width={640}>
         <ViewTitle title="Assets" sub={data ? `${data.total} indexed · ${kinds.map(([k]) => kindLabel(k).toLowerCase()).slice(0, 4).join(", ")}${kinds.length > 4 ? "…" : ""}` : "sheets, webhooks, templates, pipelines"} />
         {kinds.length > 1 && (
           <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="Filter by kind">
-            <button type="button" onClick={() => setKind(null)} aria-pressed={kind === null} className={`rounded-full border px-2.5 py-[3px] text-[10px] font-semibold transition-colors ${kind === null ? "border-t1 bg-t1 text-bg" : "border-line text-t2 hover:border-line-strong hover:text-t1"}`}>
+            <button type="button" onClick={() => setKind(null)} aria-pressed={kind === null} className={`rounded-full border px-2.5 py-[3px] text-[11px] font-semibold transition-colors ${kind === null ? "border-t1 bg-t1 text-bg" : "border-line text-t2 hover:border-line-strong hover:text-t1"}`}>
               All
             </button>
             {kinds.map(([k, n]) => (
-              <button key={k} type="button" onClick={() => setKind(kind === k ? null : k)} aria-pressed={kind === k} className={`rounded-full border px-2.5 py-[3px] text-[10px] font-semibold transition-colors ${kind === k ? "border-t1 bg-t1 text-bg" : "border-line text-t2 hover:border-line-strong hover:text-t1"}`}>
+              <button key={k} type="button" onClick={() => setKind(kind === k ? null : k)} aria-pressed={kind === k} className={`rounded-full border px-2.5 py-[3px] text-[11px] font-semibold transition-colors ${kind === k ? "border-t1 bg-t1 text-bg" : "border-line text-t2 hover:border-line-strong hover:text-t1"}`}>
                 {kindLabel(k)} <span className="tabular font-mono opacity-70">{n}</span>
               </button>
             ))}
           </div>
         )}
         {error && (
-          <p role="alert" className="mb-3 text-[12px] text-err-text">
+          <p role="alert" className="mb-3 text-[13px] text-err-text">
             {error}
           </p>
         )}
@@ -97,8 +97,8 @@ export default function AssetsPage() {
                     <KindIcon kind={a.kind} className="size-[13px]" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[12px] font-semibold text-t1">{a.label || kindLabel(a.kind)}</span>
-                    <span className="tabular mt-[1px] block font-mono text-[8.5px] text-t3">
+                    <span className="block truncate text-[13px] font-semibold text-t1">{a.label || kindLabel(a.kind)}</span>
+                    <span className="tabular mt-[1px] block font-mono text-[9.5px] text-t3">
                       {kindLabel(a.kind).toLowerCase()} · used by {a.workflows} workflow{a.workflows === 1 ? "" : "s"} · {a.uses} step{a.uses === 1 ? "" : "s"}
                       {a.providers.length > 0 ? ` · ${a.providers.map((p) => CONNECTORS[p]?.shortLabel ?? p).join(" + ")}` : ""}
                     </span>

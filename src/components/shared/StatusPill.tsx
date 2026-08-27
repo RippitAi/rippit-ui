@@ -26,7 +26,7 @@ export function StatusPill({
   const tone = TONE[pill.tone as keyof typeof TONE] ?? TONE.muted;
   return (
     <span
-      className={`inline-flex flex-none items-center gap-1.5 rounded-full border px-[9px] py-[3px] text-[10px] font-semibold capitalize leading-none ${tone.text} ${className}`}
+      className={`inline-flex flex-none items-center gap-1.5 rounded-full border px-[9px] py-[3px] text-[11px] font-semibold capitalize leading-none ${tone.text} ${className}`}
       style={{
         background: `color-mix(in srgb, var(${tone.varName}) 10%, transparent)`,
         borderColor: `color-mix(in srgb, var(${tone.varName}) 32%, transparent)`,

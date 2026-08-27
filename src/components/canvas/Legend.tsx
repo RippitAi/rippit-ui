@@ -13,12 +13,12 @@ type Item = { swatch: React.ReactNode; label: string; hint?: string };
 
 const ITEMS: Item[] = [
   {
-    swatch: <span className="rounded-full border border-line bg-pill px-1.5 py-[1px] font-mono text-[9px] text-t3">2.1.3</span>,
+    swatch: <span className="rounded-full border border-line bg-pill px-1.5 py-[1px] font-mono text-[10px] text-t3">2.1.3</span>,
     label: "Execution order",
     hint: "Depth along the path; routes/branches continue the count",
   },
   {
-    swatch: <span className="text-[11px] text-t2">Wait 30 min</span>,
+    swatch: <span className="text-[12px] text-t2">Wait 30 min</span>,
     label: "Wait step",
     hint: "Duration from the platform's config",
   },
@@ -42,12 +42,12 @@ const ITEMS: Item[] = [
     hint: "Both workflows reference the same sheet / tag / endpoint",
   },
   {
-    swatch: <span className="rounded-[3px] border border-line px-1 py-[1px] text-[8px] text-t3">grp</span>,
+    swatch: <span className="rounded-[3px] border border-line px-1 py-[1px] text-[9px] text-t3">grp</span>,
     label: "Workflow container",
     hint: "Node-level view: one box per workflow, ordered by who calls whom",
   },
   {
-    swatch: <span className="rounded-full border border-line bg-pill px-1.5 py-[1px] text-[8px] text-t2">💬 2</span>,
+    swatch: <span className="rounded-full border border-line bg-pill px-1.5 py-[1px] text-[9px] text-t2">💬 2</span>,
     label: "Open comment threads",
     hint: "Click the step → Comments in its panel",
   },
@@ -65,7 +65,7 @@ const ITEMS: Item[] = [
     label: "Error handler / unmatched link",
   },
   {
-    swatch: <span className="rounded-full px-1.5 py-[1px] text-[9px] font-semibold" style={{ background: "color-mix(in srgb, var(--warn) 18%, transparent)", color: "var(--warn-text)" }}>↗</span>,
+    swatch: <span className="rounded-full px-1.5 py-[1px] text-[10px] font-semibold" style={{ background: "color-mix(in srgb, var(--warn) 18%, transparent)", color: "var(--warn-text)" }}>↗</span>,
     label: "Portal to connected workflow",
   },
 ];
@@ -80,7 +80,7 @@ export function Legend({ className = "" }: { className?: string }) {
         aria-expanded={open}
         aria-controls={id}
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 rounded-full border border-line bg-glass px-2.5 py-1 text-[10px] font-semibold text-t2 backdrop-blur-[8px] transition-colors hover:text-t1"
+        className="flex items-center gap-1.5 rounded-full border border-line bg-glass px-2.5 py-1 text-[11px] font-semibold text-t2 backdrop-blur-[8px] transition-colors hover:text-t1"
       >
         <HelpCircle aria-hidden="true" className="size-3" />
         Legend
@@ -93,7 +93,7 @@ export function Legend({ className = "" }: { className?: string }) {
           className="mt-1.5 w-[260px] rounded-card border border-line bg-panel p-3 shadow-[0_12px_30px_var(--ambient)]"
         >
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-t1">What you&apos;re looking at</span>
+            <span className="text-[12px] font-semibold text-t1">What you&apos;re looking at</span>
             <button
               type="button"
               aria-label="Close legend"
@@ -108,8 +108,8 @@ export function Legend({ className = "" }: { className?: string }) {
               <li key={item.label} className="flex items-start gap-2.5">
                 <span className="flex w-10 shrink-0 items-center justify-center pt-[2px]">{item.swatch}</span>
                 <span className="min-w-0">
-                  <span className="block text-[11px] text-t1">{item.label}</span>
-                  {item.hint && <span className="block text-[10px] text-t3">{item.hint}</span>}
+                  <span className="block text-[12px] text-t1">{item.label}</span>
+                  {item.hint && <span className="block text-[11px] text-t3">{item.hint}</span>}
                 </span>
               </li>
             ))}

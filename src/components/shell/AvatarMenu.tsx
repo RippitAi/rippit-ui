@@ -46,11 +46,11 @@ export function AvatarMenu() {
         className="w-[232px] rounded-card border-line bg-pill p-1 text-t1 shadow-[var(--shadow-float)]"
       >
         <div className="px-2 pb-1.5 pt-1.5">
-          <p className="truncate text-[12px] font-semibold leading-tight">{displayName}</p>
-          <p className="truncate font-mono text-[9.5px] text-t3">{user?.email}</p>
+          <p className="truncate text-[13px] font-semibold leading-tight">{displayName}</p>
+          <p className="truncate font-mono text-[10.5px] text-t3">{user?.email}</p>
         </div>
         <DropdownMenuSeparator className="bg-line2" />
-        <DropdownMenuLabel className="px-2 pb-0.5 pt-1 text-[9.5px] font-semibold uppercase tracking-wide text-t3">
+        <DropdownMenuLabel className="px-2 pb-0.5 pt-1 text-[10.5px] font-semibold uppercase tracking-wide text-t3">
           Workspace
         </DropdownMenuLabel>
         {workspaces.map((w) => {
@@ -58,7 +58,7 @@ export function AvatarMenu() {
           return (
             <DropdownMenuItem
               key={w.id}
-              className="gap-2 rounded-row text-[12px]"
+              className="gap-2 rounded-row text-[13px]"
               onClick={() => !isCurrent && switchTo(w.id)}
               aria-current={isCurrent ? "true" : undefined}
             >
@@ -70,24 +70,24 @@ export function AvatarMenu() {
                 )}
               </span>
               <span className="truncate">{w.name}</span>
-              <span className="ml-auto text-[9.5px] text-t3">{w.role}</span>
+              <span className="ml-auto text-[10.5px] text-t3">{w.role}</span>
             </DropdownMenuItem>
           );
         })}
-        <DropdownMenuItem asChild className="gap-2 rounded-row text-[12px]">
+        <DropdownMenuItem asChild className="gap-2 rounded-row text-[13px]">
           <Link href="/settings/connections#workspace">
             <Plus aria-hidden="true" className="size-3.5" />
             New workspace
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild className="gap-2 rounded-row text-[12px]">
+        <DropdownMenuItem asChild className="gap-2 rounded-row text-[13px]">
           <Link href="/settings/connections#workspace">
             <Users aria-hidden="true" className="size-3.5" />
             Members &amp; invites
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator className="bg-line2" />
-        <DropdownMenuItem asChild className="gap-2 rounded-row text-[12px]">
+        <DropdownMenuItem asChild className="gap-2 rounded-row text-[13px]">
           <Link href="/settings/connections">
             <Settings aria-hidden="true" className="size-3.5" />
             Settings
@@ -102,7 +102,7 @@ export function AvatarMenu() {
             </span>
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 rounded-row text-[12px]" onClick={signOut}>
+        <DropdownMenuItem className="gap-2 rounded-row text-[13px]" onClick={signOut}>
           <LogOut aria-hidden="true" className="size-3.5" />
           Sign out
         </DropdownMenuItem>

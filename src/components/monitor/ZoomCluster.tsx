@@ -29,7 +29,7 @@ function ClusterButton({
           onClick={onClick}
           aria-label={label}
           aria-pressed={active}
-          className="flex size-8 cursor-pointer items-center justify-center rounded-control border text-[13px] backdrop-blur-[8px] transition-colors hover:border-t1"
+          className="flex size-8 cursor-pointer items-center justify-center rounded-control border text-[14px] backdrop-blur-[8px] transition-colors hover:border-t1"
           style={{
             background: active ? "var(--text)" : "var(--glass)",
             borderColor: active ? "var(--text)" : "var(--line-strong)",
@@ -39,7 +39,7 @@ function ClusterButton({
           {children}
         </button>
       </TooltipTrigger>
-      <TooltipContent side="right" className="text-[11px]">
+      <TooltipContent side="right" className="text-[12px]">
         {label}
       </TooltipContent>
     </Tooltip>
@@ -85,7 +85,7 @@ export function ZoomCluster({
           onClick={onToggle3d}
           active={tilt}
         >
-          <span className="text-[10px] font-bold">{tilt ? "2D" : "3D"}</span>
+          <span className="text-[11px] font-bold">{tilt ? "2D" : "3D"}</span>
         </ClusterButton>
         <ClusterButton
           label={paused ? "Resume" : "Pause"}

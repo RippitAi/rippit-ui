@@ -51,7 +51,7 @@ function ConnectionRow({
     <div className="flex items-center gap-3 border-b border-line2 px-4 py-3.5 last:border-b-0">
       <ConnectorGlyph connector={connector} size={34} />
       <div className="min-w-0 flex-1">
-        <p className="flex items-center gap-2 text-[12.5px] font-semibold">
+        <p className="flex items-center gap-2 text-[13.5px] font-semibold">
           <span className="truncate">
             {connector.shortLabel} · {name}
           </span>
@@ -65,7 +65,7 @@ function ConnectionRow({
             }
           />
         </p>
-        <p className="truncate font-mono text-[10px] text-t3">
+        <p className="truncate font-mono text-[11px] text-t3">
           {connector.nouns.container} id {connection.externalId}
           {connection.accountName && connection.label && connection.accountName !== connection.label ? ` · ${connection.accountName}` : ""}
           {connection.authType === "oauth" && " · via OAuth (names & status only)"}
@@ -74,7 +74,7 @@ function ConnectionRow({
             ` · synced ${new Date(connection.lastSyncedAt).toLocaleString()}`}
         </p>
         {connection.status === "needs_reauth" && (
-          <p className="mt-1 text-[11px] text-warn-text">
+          <p className="mt-1 text-[12px] text-warn-text">
             {connector.connect.type === "extension"
               ? "Session expired — reconnect from the Rippit extension."
               : "Session expired — reconnect below."}
@@ -93,7 +93,7 @@ function ConnectionRow({
         />
       </button>
       {confirming ? (
-        <span className="flex items-center gap-2 text-[11px]">
+        <span className="flex items-center gap-2 text-[12px]">
           <button
             onClick={async () => {
               setRemoving(true);
@@ -166,9 +166,9 @@ function PairingCard() {
     <div className="rounded-card border border-line bg-panel px-4 py-4">
       <div className="mb-1 flex items-center gap-2">
         <KeyRound aria-hidden="true" className="size-3.5 text-t3" />
-        <h3 className="text-[12.5px] font-semibold">Extension pairing</h3>
+        <h3 className="text-[13.5px] font-semibold">Extension pairing</h3>
       </div>
-      <p className="mb-3 text-[11.5px] leading-relaxed text-t2">
+      <p className="mb-3 text-[12.5px] leading-relaxed text-t2">
         To connect a HighLevel location, generate a code and paste it into the
         Rippit Chrome extension. Codes are single-use and expire after 10
         minutes.
@@ -176,7 +176,7 @@ function PairingCard() {
 
       {pairing && !expired && (
         <div className="mb-3 flex items-center gap-3">
-          <code className="rounded-control border border-line-strong bg-code px-3 py-2 font-mono text-[16px] font-bold tracking-[0.25em]">
+          <code className="rounded-control border border-line-strong bg-code px-3 py-2 font-mono text-[17px] font-bold tracking-[0.25em]">
             {pairing.code}
           </code>
           <button
@@ -194,19 +194,19 @@ function PairingCard() {
               <Copy aria-hidden="true" className="size-3.5" />
             )}
           </button>
-          <span role="status" className="tabular text-[11px] text-t3">
+          <span role="status" className="tabular text-[12px] text-t3">
             expires in {Math.floor(remaining / 60)}:
             {String(remaining % 60).padStart(2, "0")}
           </span>
         </div>
       )}
       {expired && (
-        <p role="status" className="mb-3 text-[11.5px] text-warn-text">
+        <p role="status" className="mb-3 text-[12.5px] text-warn-text">
           That code expired — generate a new one.
         </p>
       )}
       {error && (
-        <p role="alert" className="mb-3 text-[11.5px] text-err-text">
+        <p role="alert" className="mb-3 text-[12.5px] text-err-text">
           {error}
         </p>
       )}
@@ -215,7 +215,7 @@ function PairingCard() {
         onClick={generate}
         disabled={busy}
         variant="outline"
-        className="h-auto cursor-pointer rounded-control border-line-strong bg-transparent px-3 py-[7px] text-[11.5px] font-semibold text-t2 hover:border-t1 hover:bg-transparent hover:text-t1 disabled:opacity-50"
+        className="h-auto cursor-pointer rounded-control border-line-strong bg-transparent px-3 py-[7px] text-[12.5px] font-semibold text-t2 hover:border-t1 hover:bg-transparent hover:text-t1 disabled:opacity-50"
       >
         {busy
           ? "Generating…"
@@ -256,8 +256,8 @@ function WorkspaceCard() {
     <div className="flex flex-col gap-3 rounded-card border border-line bg-panel px-4 py-3.5">
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
-          <h3 className="text-[12.5px] font-semibold">{current.name}</h3>
-          <p className="truncate font-mono text-[10.5px] text-t3">
+          <h3 className="text-[13.5px] font-semibold">{current.name}</h3>
+          <p className="truncate font-mono text-[11.5px] text-t3">
             you are {current.role} · {data?.members.length ?? "…"} member{data && data.members.length === 1 ? "" : "s"}
             {workspaces.length > 1 ? ` · ${workspaces.length} workspaces` : ""}
           </p>
@@ -283,9 +283,9 @@ function WorkspaceCard() {
               onChange={(e) => setNewName(e.target.value)}
               placeholder="Rename workspace…"
               aria-label="New workspace name"
-              className="h-8 w-[180px] rounded-control border-line-strong bg-hover text-[12px]"
+              className="h-8 w-[180px] rounded-control border-line-strong bg-hover text-[13px]"
             />
-            <Button type="submit" variant="outline" disabled={!newName.trim()} className="h-8 rounded-control border-line-strong bg-transparent px-2.5 text-[11.5px] text-t2 hover:text-t1">
+            <Button type="submit" variant="outline" disabled={!newName.trim()} className="h-8 rounded-control border-line-strong bg-transparent px-2.5 text-[12.5px] text-t2 hover:text-t1">
               Rename
             </Button>
           </form>
@@ -295,11 +295,11 @@ function WorkspaceCard() {
       <ul className="flex flex-col divide-y divide-line2 rounded-control border border-line2">
         {(data?.members ?? []).map((m) => (
           <li key={m.user_id} className="flex items-center gap-3 px-3 py-2">
-            <span className="min-w-0 flex-1 truncate text-[12px]">
+            <span className="min-w-0 flex-1 truncate text-[13px]">
               {m.display_name || m.email || m.user_id}
               {m.user_id === user?.id && <span className="text-t3"> (you)</span>}
             </span>
-            <span className="rounded-full border border-line px-2 py-[1px] text-[9.5px] font-semibold text-t3">{m.role}</span>
+            <span className="rounded-full border border-line px-2 py-[1px] text-[10.5px] font-semibold text-t3">{m.role}</span>
             {isOwner && m.user_id !== user?.id && (
               <button
                 type="button"
@@ -311,7 +311,7 @@ function WorkspaceCard() {
                     setError(err instanceof Error ? err.message : "Remove failed");
                   }
                 }}
-                className="text-[11px] text-t3 hover:text-err-text"
+                className="text-[12px] text-t3 hover:text-err-text"
                 aria-label={`Remove ${m.display_name || m.email || "member"}`}
               >
                 remove
@@ -321,8 +321,8 @@ function WorkspaceCard() {
         ))}
         {(data?.invites ?? []).map((inv) => (
           <li key={inv.id} className="flex items-center gap-3 px-3 py-2 text-t3">
-            <span className="min-w-0 flex-1 truncate text-[12px]">{inv.email}</span>
-            <span className="rounded-full border border-dashed border-line px-2 py-[1px] text-[9.5px] font-semibold">invited · {inv.role}</span>
+            <span className="min-w-0 flex-1 truncate text-[13px]">{inv.email}</span>
+            <span className="rounded-full border border-dashed border-line px-2 py-[1px] text-[10.5px] font-semibold">invited · {inv.role}</span>
             {isOwner && (
               <button
                 type="button"
@@ -330,7 +330,7 @@ function WorkspaceCard() {
                   await revokeInvite(current.id, inv.id).catch(() => {});
                   reload();
                 }}
-                className="text-[11px] hover:text-err-text"
+                className="text-[12px] hover:text-err-text"
                 aria-label={`Revoke invite for ${inv.email}`}
               >
                 revoke
@@ -363,14 +363,14 @@ function WorkspaceCard() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Invite by email…"
             aria-label="Invite member by email"
-            className="h-8 rounded-control border-line-strong bg-hover text-[12px]"
+            className="h-8 rounded-control border-line-strong bg-hover text-[13px]"
           />
-          <Button type="submit" disabled={!email.trim()} className="h-8 rounded-control px-3 text-[11.5px] font-semibold">
+          <Button type="submit" disabled={!email.trim()} className="h-8 rounded-control px-3 text-[12.5px] font-semibold">
             Invite
           </Button>
         </form>
       )}
-      <p className="text-[10.5px] text-t3">
+      <p className="text-[11.5px] text-t3">
         Invited people join automatically the first time they sign in with that email.
         Everyone in a workspace sees the same connections, tags, comments and change log.
       </p>
@@ -389,14 +389,14 @@ function WorkspaceCard() {
             }
           }}
         >
-          <Input name="ws" placeholder="New workspace name…" aria-label="New workspace name" className="h-8 w-[200px] rounded-control border-line-strong bg-hover text-[12px]" />
-          <Button type="submit" variant="outline" className="h-8 rounded-control border-line-strong bg-transparent px-2.5 text-[11.5px] text-t2 hover:text-t1">
+          <Input name="ws" placeholder="New workspace name…" aria-label="New workspace name" className="h-8 w-[200px] rounded-control border-line-strong bg-hover text-[13px]" />
+          <Button type="submit" variant="outline" className="h-8 rounded-control border-line-strong bg-transparent px-2.5 text-[12.5px] text-t2 hover:text-t1">
             Create workspace
           </Button>
         </form>
       </div>
       {error && (
-        <p role="alert" className="text-[11px] text-err-text">
+        <p role="alert" className="text-[12px] text-err-text">
           {error}
         </p>
       )}
@@ -412,8 +412,8 @@ function ProfileCard() {
   return (
     <div className="flex items-center gap-3 rounded-card border border-line bg-panel px-4 py-3.5">
       <div className="min-w-0 flex-1">
-        <h3 className="text-[12.5px] font-semibold">Signed in</h3>
-        <p className="truncate font-mono text-[11px] text-t3">{user?.email}</p>
+        <h3 className="text-[13.5px] font-semibold">Signed in</h3>
+        <p className="truncate font-mono text-[12px] text-t3">{user?.email}</p>
         <form
           className="mt-2 flex items-center gap-1.5"
           onSubmit={async (e) => {
@@ -429,9 +429,9 @@ function ProfileCard() {
             onChange={(e) => setName(e.target.value)}
             placeholder="Display name (shown to teammates)"
             aria-label="Display name"
-            className="h-8 w-[240px] rounded-control border-line-strong bg-hover text-[12px]"
+            className="h-8 w-[240px] rounded-control border-line-strong bg-hover text-[13px]"
           />
-          <Button type="submit" variant="outline" disabled={!name.trim()} className="h-8 rounded-control border-line-strong bg-transparent px-2.5 text-[11.5px] text-t2 hover:text-t1">
+          <Button type="submit" variant="outline" disabled={!name.trim()} className="h-8 rounded-control border-line-strong bg-transparent px-2.5 text-[12.5px] text-t2 hover:text-t1">
             {saved ? "Saved" : "Save"}
           </Button>
         </form>
@@ -443,7 +443,7 @@ function ProfileCard() {
         }}
         disabled={busy}
         variant="outline"
-        className="h-auto cursor-pointer rounded-control border-line-strong bg-transparent px-3 py-[7px] text-[11.5px] font-semibold text-t2 hover:border-t1 hover:bg-transparent hover:text-t1 disabled:opacity-50"
+        className="h-auto cursor-pointer rounded-control border-line-strong bg-transparent px-3 py-[7px] text-[12.5px] font-semibold text-t2 hover:border-t1 hover:bg-transparent hover:text-t1 disabled:opacity-50"
       >
         <LogOut aria-hidden="true" className="size-3" />
         {busy ? "Signing out…" : "Sign out"}
@@ -496,7 +496,7 @@ export default function ConnectionsPage() {
           {oauthNotice && (
             <div
               role="status"
-              className="flex items-center justify-between gap-3 rounded-card border px-4 py-2.5 text-[12px]"
+              className="flex items-center justify-between gap-3 rounded-card border px-4 py-2.5 text-[13px]"
               style={{
                 color: oauthNotice.tone === "ok" ? "var(--ok-text)" : "var(--warn-text)",
                 borderColor: `color-mix(in srgb, var(${oauthNotice.tone === "ok" ? "--ok" : "--warn"}) 35%, transparent)`,
@@ -513,13 +513,13 @@ export default function ConnectionsPage() {
           <section aria-labelledby="connected-heading">
             <h2
               id="connected-heading"
-              className="mb-2 text-[11px] font-semibold text-t3"
+              className="mb-2 text-[12px] font-semibold text-t3"
             >
               Connected platforms
             </h2>
             <div className="overflow-hidden rounded-card border border-line bg-panel">
               {connections.length === 0 && (
-                <p className="px-4 py-6 text-center text-[12px] italic text-t3">
+                <p className="px-4 py-6 text-center text-[13px] italic text-t3">
                   Nothing connected yet — add a platform below.
                 </p>
               )}
@@ -538,7 +538,7 @@ export default function ConnectionsPage() {
           <section aria-labelledby="add-heading">
             <h2
               id="add-heading"
-              className="mb-2 text-[11px] font-semibold text-t3"
+              className="mb-2 text-[12px] font-semibold text-t3"
             >
               Add a platform
             </h2>
@@ -555,7 +555,7 @@ export default function ConnectionsPage() {
           <section aria-labelledby="pairing-heading">
             <h2
               id="pairing-heading"
-              className="mb-2 text-[11px] font-semibold text-t3"
+              className="mb-2 text-[12px] font-semibold text-t3"
             >
               Chrome extension
             </h2>
@@ -565,7 +565,7 @@ export default function ConnectionsPage() {
           <section aria-labelledby="workspace-heading">
             <h2
               id="workspace-heading"
-              className="mb-2 text-[11px] font-semibold text-t3"
+              className="mb-2 text-[12px] font-semibold text-t3"
             >
               Workspace
             </h2>
@@ -575,7 +575,7 @@ export default function ConnectionsPage() {
           <section aria-labelledby="profile-heading">
             <h2
               id="profile-heading"
-              className="mb-2 text-[11px] font-semibold text-t3"
+              className="mb-2 text-[12px] font-semibold text-t3"
             >
               Account
             </h2>

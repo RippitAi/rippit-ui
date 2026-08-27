@@ -33,17 +33,17 @@ export function Timeline({
       className="absolute bottom-3 left-[276px] right-[356px] z-[3] flex h-[104px] flex-col gap-1.5 rounded-card border border-line bg-panel px-4 pb-[9px] pt-2.5 shadow-[0_12px_34px_var(--shade)] backdrop-blur-[14px]"
     >
       <div className="flex items-center gap-3.5">
-        <h2 className="text-[10.5px] font-semibold text-t3">
+        <h2 className="text-[11.5px] font-semibold text-t3">
           Executions · last 24h
         </h2>
         <div className="flex-1" />
         <div className="flex items-center gap-1.5">
           <div aria-hidden="true" className="size-[7px] rounded-[2px] bg-ok" />
-          <div className="tabular text-[10.5px] text-t2">1,272 ok</div>
+          <div className="tabular text-[11.5px] text-t2">1,272 ok</div>
         </div>
         <div className="flex items-center gap-1.5">
           <div aria-hidden="true" className="size-[7px] rounded-[2px] bg-err" />
-          <div className="tabular text-[10.5px] text-t2">{errors} err</div>
+          <div className="tabular text-[11.5px] text-t2">{errors} err</div>
         </div>
       </div>
       <div
@@ -79,9 +79,9 @@ export function Timeline({
         <div aria-hidden="true" className="h-full w-[2px] rounded-[2px] bg-t1" />
       </div>
       <div className="flex justify-between">
-        <div className="text-[9.5px] text-t3">24h ago</div>
-        <div className="text-[9.5px] text-t3">12h</div>
-        <div className="text-[9.5px] font-semibold text-t1">Now</div>
+        <div className="text-[10.5px] text-t3">24h ago</div>
+        <div className="text-[10.5px] text-t3">12h</div>
+        <div className="text-[10.5px] font-semibold text-t1">Now</div>
       </div>
     </motion.section>
   );

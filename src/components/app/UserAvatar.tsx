@@ -40,7 +40,7 @@ export function UserAvatar({
   return (
     <span
       aria-hidden="true"
-      className="flex flex-none items-center justify-center rounded-full bg-t1 font-mono text-[10px] font-bold text-bg"
+      className="flex flex-none items-center justify-center rounded-full bg-t1 font-mono text-[11px] font-bold text-bg"
       style={{ width: size, height: size }}
     >
       {initialsOf(user)}

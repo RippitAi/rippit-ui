@@ -123,14 +123,14 @@ export function WorkflowBrowser() {
             onChange={(e) => setQ(e.target.value)}
             placeholder={`Filter ${index.length || ""}…`}
             aria-label="Filter workflows"
-            className="min-w-0 flex-1 border-0 bg-transparent text-[10.5px] text-t1 outline-none placeholder:text-t3"
+            className="min-w-0 flex-1 border-0 bg-transparent text-[11.5px] text-t1 outline-none placeholder:text-t3"
           />
         </label>
       </div>
       <div className="thin-scroll stagger min-h-0 flex-1 overflow-y-auto p-[7px]">
         {hits ? (
           <div>
-            <p role="status" className="tabular mx-1.5 mb-1 mt-0.5 font-mono text-[9px] text-t3">
+            <p role="status" className="tabular mx-1.5 mb-1 mt-0.5 font-mono text-[10px] text-t3">
               {hits.length}
               {hits.length === HIT_CAP ? "+" : ""} match{hits.length === 1 ? "" : "es"}
             </p>
@@ -138,23 +138,23 @@ export function WorkflowBrowser() {
               <Link key={h.key} href={h.href} title={h.path} className={`${ROW} h-[29px] gap-[7px]`}>
                 <AppPuck app={h.app} size={16} />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[10.5px] text-t1">{h.name}</span>
-                  <span className="tabular block truncate font-mono text-[8px] text-t3">{h.path}</span>
+                  <span className="block truncate text-[11.5px] text-t1">{h.name}</span>
+                  <span className="tabular block truncate font-mono text-[9px] text-t3">{h.path}</span>
                 </span>
                 <SevDot sev={h.sev} />
               </Link>
             ))}
-            {hits.length === 0 && <p className="px-1.5 py-1 text-[10.5px] italic text-t3">No workflows match</p>}
+            {hits.length === 0 && <p className="px-1.5 py-1 text-[11.5px] italic text-t3">No workflows match</p>}
           </div>
         ) : (
           <>
             {recent.length > 0 && (
               <section className="mb-2" aria-label="Recently opened">
-                <p className="px-1.5 pb-0.5 pt-1 text-[9.5px] font-semibold uppercase tracking-wide text-t3">Recent</p>
+                <p className="px-1.5 pb-0.5 pt-1 text-[10.5px] font-semibold uppercase tracking-wide text-t3">Recent</p>
                 {recent.map((r) => {
                   const href = `/w/${r.provider}/${r.id}`;
                   return (
-                    <Link key={`${r.provider}:${r.id}`} href={href} aria-current={pathname === href ? "page" : undefined} className={`${ROW} h-[26px] text-[10.5px] ${pathname === href ? "bg-hover font-medium text-t1" : "text-t2 hover:text-t1"}`}>
+                    <Link key={`${r.provider}:${r.id}`} href={href} aria-current={pathname === href ? "page" : undefined} className={`${ROW} h-[26px] text-[11.5px] ${pathname === href ? "bg-hover font-medium text-t1" : "text-t2 hover:text-t1"}`}>
                       <Clock3 aria-hidden="true" className="size-[11px] flex-none text-t3" />
                       <span className="truncate">{r.name}</span>
                     </Link>
@@ -179,7 +179,7 @@ export function WorkflowBrowser() {
               />
             ))}
             {!loading && connections.length === 0 && (
-              <div className="px-1.5 py-2 text-[10.5px] text-t3">
+              <div className="px-1.5 py-2 text-[11.5px] text-t3">
                 Nothing connected yet.{" "}
                 <Link href="/settings/connections" className="font-semibold text-t1 underline-offset-2 hover:underline">
                   Connect a platform
@@ -195,12 +195,12 @@ export function WorkflowBrowser() {
             )}
             {views.length > 0 && (
               <section className="mt-2" aria-label="Saved views">
-                <p className="px-1.5 pb-0.5 pt-1 text-[9.5px] font-semibold uppercase tracking-wide text-t3">Views</p>
+                <p className="px-1.5 pb-0.5 pt-1 text-[10.5px] font-semibold uppercase tracking-wide text-t3">Views</p>
                 {views.map((v) => (
                   <Link
                     key={v.id}
                     href={`/${v.kind === "unified" ? "map" : "dashboard"}?view=${encodeURIComponent(v.id)}`}
-                    className={`${ROW} h-[26px] text-[10.5px] text-t2 hover:text-t1`}
+                    className={`${ROW} h-[26px] text-[11.5px] text-t2 hover:text-t1`}
                   >
                     <Bookmark aria-hidden="true" className="size-[11px] flex-none text-t3" />
                     <span className="truncate">{v.name}</span>
@@ -266,14 +266,14 @@ function ConnectionTree({
           <ChevronRight aria-hidden="true" className={`size-[10px] flex-none text-t3 transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] ${expanded ? "rotate-90" : ""}`} />
           <AppPuck app={connector.id} color={connector.brandColor} glyph={connector.glyph} size={15} />
           <span
-            className="min-w-0 flex-1 truncate text-[10px] font-semibold text-t1"
+            className="min-w-0 flex-1 truncate text-[11px] font-semibold text-t1"
             title={`${connector.label} · ${connection.displayName}${connection.accountName && connection.label ? ` (${connection.accountName})` : ""} · id ${connection.externalId}`}
           >
             {connector.shortLabel} · {connection.displayName}
           </span>
         </button>
         {needsReauth ? (
-          <Link href="/settings/connections" className="flex items-center gap-0.5 text-[9px] font-semibold text-warn-text hover:underline" title="Session expired — reconnect from Settings">
+          <Link href="/settings/connections" className="flex items-center gap-0.5 text-[10px] font-semibold text-warn-text hover:underline" title="Session expired — reconnect from Settings">
             <TriangleAlert aria-hidden="true" className="size-2.5" />
             reauth
           </Link>
@@ -287,7 +287,7 @@ function ConnectionTree({
             className="group/sync flex cursor-pointer items-center gap-1 text-t3 transition-colors hover:text-t1 disabled:cursor-default"
           >
             <RefreshCw aria-hidden="true" className={`size-[9px] ${syncing ? "spin motion-reduce:animate-none" : "opacity-0 transition-opacity group-hover/sync:opacity-100"}`} />
-            <span aria-hidden="true" className="tabular font-mono text-[8px]">{syncing ? "syncing" : total}</span>
+            <span aria-hidden="true" className="tabular font-mono text-[9px]">{syncing ? "syncing" : total}</span>
           </button>
         )}
       </div>
@@ -301,7 +301,7 @@ function ConnectionTree({
         </div>
       )}
       {status === "error" && (
-        <p className="px-1.5 py-0.5 text-[10px] text-warn-text">
+        <p className="px-1.5 py-0.5 text-[11px] text-warn-text">
           Couldn’t load.{" "}
           <button type="button" onClick={onSync} className="cursor-pointer underline underline-offset-2 hover:text-t1">
             Retry
@@ -309,12 +309,12 @@ function ConnectionTree({
         </p>
       )}
       {status === "ready" && total === 0 && (
-        <p className="px-1.5 py-0.5 text-[10px] italic text-t3">{syncing ? "Syncing…" : `No ${connector.nouns.workflowPlural} synced yet`}</p>
+        <p className="px-1.5 py-0.5 text-[11px] italic text-t3">{syncing ? "Syncing…" : `No ${connector.nouns.workflowPlural} synced yet`}</p>
       )}
       {groups.map((g) => (
         <div key={g.id}>
           {groups.length > 1 && (
-            <p className="truncate px-1.5 pb-0.5 pt-1 font-mono text-[8.5px] text-t3" title={g.label}>
+            <p className="truncate px-1.5 pb-0.5 pt-1 font-mono text-[9.5px] text-t3" title={g.label}>
               {g.label}
             </p>
           )}
@@ -372,9 +372,9 @@ function FolderRows({
           aria-hidden="true"
           className={`size-[10px] flex-none text-t3 transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] ${open ? "rotate-90" : ""}`}
         />
-        <span className="min-w-0 flex-1 truncate text-[10.5px] font-medium text-t2">{folder.label}</span>
+        <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium text-t2">{folder.label}</span>
         <SevDot sev={sev} />
-        <span className="tabular font-mono text-[8px] text-t3">{folder.items.length}</span>
+        <span className="tabular font-mono text-[9px] text-t3">{folder.items.length}</span>
       </button>
       {open && (
         <div className="my-px mb-[3px]">
@@ -410,7 +410,7 @@ function WorkflowRow({
       className={`${ROW} h-[26px] ${indent ? "pl-[22px]" : ""} ${active ? "bg-hover" : ""}`}
     >
       <StatusDot item={item} />
-      <span className={`min-w-0 flex-1 truncate text-[10px] ${active ? "font-medium text-t1" : "text-t2"}`}>{item.name}</span>
+      <span className={`min-w-0 flex-1 truncate text-[11px] ${active ? "font-medium text-t1" : "text-t2"}`}>{item.name}</span>
       <SevDot sev={sevOf.get(`${provider}:${item.refId}`) ?? null} />
     </Link>
   );

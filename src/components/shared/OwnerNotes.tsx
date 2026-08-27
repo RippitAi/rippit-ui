@@ -65,7 +65,7 @@ export function OwnerChip({
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-line-strong px-2.5 py-[3px] text-[10.5px] font-semibold text-t2 transition-colors hover:border-t1 hover:text-t1"
+        className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-line-strong px-2.5 py-[3px] text-[11.5px] font-semibold text-t2 transition-colors hover:border-t1 hover:text-t1"
         title="Owner — who is accountable for this workflow"
       >
         <UserCircle2 aria-hidden="true" className="size-3" />
@@ -79,16 +79,16 @@ export function OwnerChip({
                 <button
                   type="button"
                   onClick={() => pick(m.user_id)}
-                  className={`flex w-full items-center gap-2 rounded-control px-2 py-1 text-left text-[11.5px] hover:bg-hover ${meta?.ownerUserId === m.user_id ? "text-t1" : "text-t2"}`}
+                  className={`flex w-full items-center gap-2 rounded-control px-2 py-1 text-left text-[12.5px] hover:bg-hover ${meta?.ownerUserId === m.user_id ? "text-t1" : "text-t2"}`}
                 >
                   <span className="truncate">{m.display_name || m.email}</span>
-                  {meta?.ownerUserId === m.user_id && <span className="ml-auto text-[9.5px] text-t3">owner</span>}
+                  {meta?.ownerUserId === m.user_id && <span className="ml-auto text-[10.5px] text-t3">owner</span>}
                 </button>
               </li>
             ))}
             {meta?.ownerUserId && (
               <li>
-                <button type="button" onClick={() => pick(null)} className="mt-1 w-full rounded-control border-t border-line2 px-2 py-1 text-left text-[11px] text-t3 hover:text-t1">
+                <button type="button" onClick={() => pick(null)} className="mt-1 w-full rounded-control border-t border-line2 px-2 py-1 text-left text-[12px] text-t3 hover:text-t1">
                   Clear owner
                 </button>
               </li>
@@ -148,9 +148,9 @@ export function NotesBody({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder={"What this workflow is for, who to call, what to check first when it breaks…"}
-          className="min-h-0 flex-1 resize-none rounded-control border border-line bg-panel px-3 py-2 font-mono text-[11.5px] leading-[1.6] text-t1 placeholder:text-t3"
+          className="min-h-0 flex-1 resize-none rounded-control border border-line bg-panel px-3 py-2 font-mono text-[12.5px] leading-[1.6] text-t1 placeholder:text-t3"
         />
-        <div className="flex items-center justify-between text-[10px] text-t3">
+        <div className="flex items-center justify-between text-[11px] text-t3">
           <span>{meta?.updatedAt ? `Updated ${new Date(meta.updatedAt).toLocaleString()}` : "Not written yet"}</span>
           <button
             type="button"
@@ -164,7 +164,7 @@ export function NotesBody({
                 setSaving(false);
               }
             }}
-            className="rounded-control border border-line px-2.5 py-1 text-[11px] font-semibold text-t2 hover:text-t1 disabled:opacity-50"
+            className="rounded-control border border-line px-2.5 py-1 text-[12px] font-semibold text-t2 hover:text-t1 disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save notes"}
           </button>

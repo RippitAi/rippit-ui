@@ -27,7 +27,7 @@ export function TagFilter({
         <button
           type="button"
           onClick={() => onChange([])}
-          className="text-[10px] text-t3 underline-offset-2 hover:text-t1 hover:underline"
+          className="text-[11px] text-t3 underline-offset-2 hover:text-t1 hover:underline"
         >
           clear
         </button>

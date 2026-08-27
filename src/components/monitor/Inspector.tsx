@@ -28,9 +28,9 @@ function Metric({
 }) {
   return (
     <div className="bg-panel px-4 py-2.5">
-      <div className="text-[10px] text-t3">{label}</div>
+      <div className="text-[11px] text-t3">{label}</div>
       <div
-        className="tabular mt-[3px] text-[15px] font-semibold"
+        className="tabular mt-[3px] text-[16px] font-semibold"
         style={color ? { color } : undefined}
       >
         {value}
@@ -102,17 +102,17 @@ export function Inspector({
       <div className="flex items-center gap-[11px] px-4 pb-3 pt-3.5">
         <div
           aria-hidden="true"
-          className="flex size-[38px] flex-none items-center justify-center rounded-[11px] border border-white/25 font-mono text-[12px] font-bold text-white shadow-[0_4px_12px_var(--shade)]"
+          className="flex size-[38px] flex-none items-center justify-center rounded-[11px] border border-white/25 font-mono text-[13px] font-bold text-white shadow-[0_4px_12px_var(--shade)]"
           style={{ background: onColorGradient(node.col) }}
         >
           {node.icon}
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-[2px]">
-          <h2 className="truncate text-[14.5px] font-semibold">{node.name}</h2>
-          <div className="text-[10.5px] text-t3">{node.sub}</div>
+          <h2 className="truncate text-[15.5px] font-semibold">{node.name}</h2>
+          <div className="text-[11.5px] text-t3">{node.sub}</div>
         </div>
         <div
-          className="flex-none rounded-full border px-[9px] py-[3px] text-[10px] font-semibold"
+          className="flex-none rounded-full border px-[9px] py-[3px] text-[11px] font-semibold"
           style={{ color: sc.color, background: sc.bg, borderColor: sc.border }}
         >
           {sc.label}
@@ -129,7 +129,7 @@ export function Inspector({
             className="overflow-hidden"
           >
             <div
-              className="mx-4 mb-3 rounded-control border px-3 py-[9px] text-[11px] leading-normal"
+              className="mx-4 mb-3 rounded-control border px-3 py-[9px] text-[12px] leading-normal"
               style={{ background: sc.bg, borderColor: sc.border, color: sc.color }}
             >
               {status === "err"
@@ -165,7 +165,7 @@ export function Inspector({
             <TabsTrigger
               key={id}
               value={id}
-              className="flex-none cursor-pointer rounded-none border-0 border-b-2 border-transparent bg-transparent px-3 py-2.5 text-[11.5px] font-semibold text-t3 capitalize shadow-none transition-colors hover:text-t1 data-[state=active]:bg-transparent data-[state=active]:text-t1 data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent"
+              className="flex-none cursor-pointer rounded-none border-0 border-b-2 border-transparent bg-transparent px-3 py-2.5 text-[12.5px] font-semibold text-t3 capitalize shadow-none transition-colors hover:text-t1 data-[state=active]:bg-transparent data-[state=active]:text-t1 data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent"
               style={activeTab === id ? { borderBottomColor: ring } : undefined}
             >
               {id}
@@ -176,7 +176,7 @@ export function Inspector({
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3.5">
           <TabsContent value="output" className="m-0">
             <div className="mb-2 flex items-center justify-between">
-              <div className="text-[10.5px] font-semibold text-t3">
+              <div className="text-[11.5px] font-semibold text-t3">
                 Output · run #4,391
               </div>
               <button
@@ -184,7 +184,7 @@ export function Inspector({
                 aria-label={
                   copied ? "Copied to clipboard" : "Copy payload to clipboard"
                 }
-                className="flex cursor-pointer items-center gap-1 text-[10px] text-t3 transition-colors hover:text-t1"
+                className="flex cursor-pointer items-center gap-1 text-[11px] text-t3 transition-colors hover:text-t1"
               >
                 <span aria-hidden="true">{copied ? "copied" : "copy"}</span>
                 {copied ? (
@@ -194,7 +194,7 @@ export function Inspector({
                 )}
               </button>
             </div>
-            <div className="rounded-code border border-line2 bg-code px-3.5 py-3 font-mono text-[11px] leading-[1.75]">
+            <div className="rounded-code border border-line2 bg-code px-3.5 py-3 font-mono text-[12px] leading-[1.75]">
               <div style={{ color: "var(--jpunc)" }}>{"{"}</div>
               {payloadRows.map((r, i) => (
                 <div
@@ -210,7 +210,7 @@ export function Inspector({
               <div style={{ color: "var(--jpunc)" }}>{"}"}</div>
             </div>
             <div className="mt-3 flex items-center gap-2">
-              <div className="text-[10.5px] font-semibold text-t3">
+              <div className="text-[11.5px] font-semibold text-t3">
                 Throughput · 1h
               </div>
               <div className="h-px flex-1 bg-line2" />
@@ -232,7 +232,7 @@ export function Inspector({
           </TabsContent>
 
           <TabsContent value="config" className="m-0">
-            <div className="mb-2 text-[10.5px] font-semibold text-t3">
+            <div className="mb-2 text-[11.5px] font-semibold text-t3">
               Module config
             </div>
             <div className="flex flex-col">
@@ -241,15 +241,15 @@ export function Inspector({
                   key={k}
                   className="flex items-center justify-between gap-3 border-b border-line2 px-0.5 py-[9px]"
                 >
-                  <div className="text-[11px] text-t3">{k}</div>
-                  <div className="text-right font-mono text-[10.5px]">{v}</div>
+                  <div className="text-[12px] text-t3">{k}</div>
+                  <div className="text-right font-mono text-[11.5px]">{v}</div>
                 </div>
               ))}
             </div>
           </TabsContent>
 
           <TabsContent value="runs" className="m-0">
-            <div className="mb-1.5 text-[10.5px] font-semibold text-t3">
+            <div className="mb-1.5 text-[11.5px] font-semibold text-t3">
               Recent runs
             </div>
             <div className="flex flex-col">
@@ -262,11 +262,11 @@ export function Inspector({
                     className="size-1.5 flex-none rounded-full"
                     style={{ background: run.c, boxShadow: `0 0 6px ${run.c}` }}
                   />
-                  <div className="flex-1 font-mono text-[10.5px] text-t2">
+                  <div className="flex-1 font-mono text-[11.5px] text-t2">
                     {run.t}
                   </div>
-                  <div className="font-mono text-[10px] text-t3">{run.dur}</div>
-                  <div className="w-11 text-right text-[10px] text-t3">
+                  <div className="font-mono text-[11px] text-t3">{run.dur}</div>
+                  <div className="w-11 text-right text-[11px] text-t3">
                     {run.ago}
                   </div>
                 </div>
@@ -278,12 +278,12 @@ export function Inspector({
 
       {/* footer */}
       <div className="flex gap-2 border-t border-line2 px-4 py-3">
-        <Button className="h-auto flex-1 cursor-pointer rounded-control py-[9px] text-[12px] font-semibold hover:opacity-85">
+        <Button className="h-auto flex-1 cursor-pointer rounded-control py-[9px] text-[13px] font-semibold hover:opacity-85">
           Replay run
         </Button>
         <Button
           variant="outline"
-          className="h-auto flex-1 cursor-pointer rounded-control border-line bg-transparent py-[9px] text-[12px] font-semibold text-t2 hover:border-t1 hover:bg-transparent hover:text-t1"
+          className="h-auto flex-1 cursor-pointer rounded-control border-line bg-transparent py-[9px] text-[13px] font-semibold text-t2 hover:border-t1 hover:bg-transparent hover:text-t1"
         >
           Open in {getConnector(node.provider ?? "make").label}
           <ArrowUpRight aria-hidden="true" className="size-3" />

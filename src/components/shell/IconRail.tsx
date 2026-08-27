@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import {
   AtSign,
   Bell,
+  HeartPulse,
   Inbox,
   LayoutDashboard,
   Link2,
@@ -69,6 +70,7 @@ export function IconRail() {
     { id: "dashboard", href: "/dashboard", icon: LayoutDashboard, label: "Dashboard", match: (p) => p.startsWith("/dashboard") },
     { id: "canvas", href: "/w", icon: Workflow, label: "Workflows", match: (p) => p === "/w" || p.startsWith("/w/") },
     { id: "map", href: "/map", icon: Network, label: "System map", match: (p) => p.startsWith("/map") },
+    { id: "health", href: "/health", icon: HeartPulse, label: "Health", match: (p) => p.startsWith("/health") },
     { id: "assets", href: "/assets", icon: Link2, label: "Assets", match: (p) => p.startsWith("/assets") },
     { id: "inbox", href: "/inbox", icon: Inbox, label: "Needs you", match: (p) => p.startsWith("/inbox"), badge: badges.needsYou },
     { id: "activity", href: "/activity", icon: Bell, label: "Notifications", match: (p) => p.startsWith("/activity"), badge: badges.unread },
@@ -129,13 +131,13 @@ export function IconRail() {
       <Tip label="Action hub · ⌘K">
         <IconBtn icon={Search} label="Action hub (⌘K)" title={null} size={34} onClick={palette.open} />
       </Tip>
-      <Tip label={mounted && resolvedTheme === "light" ? "Switch to dark theme" : "Switch to light theme"}>
+      <Tip label={mounted && resolvedTheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}>
         <IconBtn
-          icon={mounted && resolvedTheme === "light" ? Moon : Sun}
-          label={mounted && resolvedTheme === "light" ? "Switch to dark theme" : "Switch to light theme"}
+          icon={mounted && resolvedTheme === "dark" ? Sun : Moon}
+          label={mounted && resolvedTheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
           title={null}
           size={34}
-          onClick={() => setTheme(resolvedTheme === "light" ? "dark" : "light")}
+          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
         />
       </Tip>
       <Tip label={!available ? "No side panel on this view" : railOpen ? "Hide side panel · [" : "Show side panel · ["}>

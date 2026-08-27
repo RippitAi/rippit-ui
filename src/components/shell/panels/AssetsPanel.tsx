@@ -49,8 +49,8 @@ export function AssetsPanel() {
             >
               <ChevronRight aria-hidden="true" className={`size-[10px] flex-none text-t3 transition-transform duration-[var(--dur-fast)] ${isOpen ? "rotate-90" : ""}`} />
               <KindIcon kind={kind} className="size-[11px] flex-none text-t3" />
-              <span className="min-w-0 flex-1 truncate text-[10.5px] font-medium text-t2">{kindLabel(kind)}</span>
-              <span className="tabular font-mono text-[8px] text-t3">{n}</span>
+              <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium text-t2">{kindLabel(kind)}</span>
+              <span className="tabular font-mono text-[9px] text-t3">{n}</span>
             </button>
             {isOpen && (
               <div className="mb-1">

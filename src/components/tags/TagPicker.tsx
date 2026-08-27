@@ -86,7 +86,7 @@ export function TagPicker({
         aria-controls={listId}
         onClick={() => setOpen((o) => !o)}
         className={`inline-flex items-center gap-1 rounded-full border border-dashed border-line-strong px-2 ${
-          compact ? "py-[1px] text-[9.5px]" : "py-[2px] text-[10px]"
+          compact ? "py-[1px] text-[10.5px]" : "py-[2px] text-[11px]"
         } font-semibold text-t3 transition-colors hover:border-t1 hover:text-t1`}
       >
         <TagIcon aria-hidden="true" className="size-3" />
@@ -102,7 +102,7 @@ export function TagPicker({
         >
           <ul className="flex max-h-[200px] flex-col gap-1 overflow-auto">
             {all.length === 0 && (
-              <li className="px-1 py-1 text-[11px] text-t3">No tags yet — create one below.</li>
+              <li className="px-1 py-1 text-[12px] text-t3">No tags yet — create one below.</li>
             )}
             {all.map((t) => {
               const on = tags.some((x) => x.id === t.id);
@@ -126,18 +126,18 @@ export function TagPicker({
               placeholder="New tag…"
               aria-label="New tag name"
               maxLength={40}
-              className="min-w-0 flex-1 rounded-control border border-line bg-pill px-2 py-1 text-[11px] text-t1 placeholder:text-t3"
+              className="min-w-0 flex-1 rounded-control border border-line bg-pill px-2 py-1 text-[12px] text-t1 placeholder:text-t3"
             />
             <button
               type="submit"
               disabled={!draft.trim()}
-              className="rounded-control border border-line px-2 py-1 text-[10.5px] font-semibold text-t2 hover:text-t1 disabled:opacity-50"
+              className="rounded-control border border-line px-2 py-1 text-[11.5px] font-semibold text-t2 hover:text-t1 disabled:opacity-50"
             >
               Add
             </button>
           </form>
           {error && (
-            <p role="alert" className="mt-1.5 text-[10.5px] text-err-text">
+            <p role="alert" className="mt-1.5 text-[11.5px] text-err-text">
               {error}
             </p>
           )}

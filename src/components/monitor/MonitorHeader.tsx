@@ -23,9 +23,9 @@ function Stat({
 }) {
   return (
     <div className="flex flex-col gap-px">
-      <div className="text-[10px] text-t3">{label}</div>
+      <div className="text-[11px] text-t3">{label}</div>
       <div
-        className="tabular text-[13px] font-semibold"
+        className="tabular text-[14px] font-semibold"
         style={color ? { color } : undefined}
       >
         {value}
@@ -58,8 +58,8 @@ export function MonitorHeader({
         >
           <div className="size-1.5 rounded-full bg-bg" />
         </div>
-        <div className="text-[16px] font-bold tracking-[-0.3px]">rippit</div>
-        <div className="mt-px text-[11px] text-t3">Monitor</div>
+        <div className="text-[17px] font-bold tracking-[-0.3px]">rippit</div>
+        <div className="mt-px text-[12px] text-t3">Monitor</div>
       </div>
 
       <div className="h-[18px] w-px bg-line" aria-hidden="true" />
@@ -70,11 +70,11 @@ export function MonitorHeader({
           aria-label="Switch workflow — current: Lead Capture → Nurture (Production)"
           className="group flex cursor-pointer items-center gap-2"
         >
-          <span className="text-[12.5px] font-semibold">
+          <span className="text-[13.5px] font-semibold">
             Lead Capture → Nurture
           </span>
           <ChevronDown className="size-3 text-t3 transition-transform group-data-[state=open]:rotate-180" />
-          <span className="rounded-[5px] border border-line bg-hover px-[7px] py-[2px] text-[10px] text-t2">
+          <span className="rounded-[5px] border border-line bg-hover px-[7px] py-[2px] text-[11px] text-t2">
             Production
           </span>
         </DropdownMenuTrigger>
@@ -83,7 +83,7 @@ export function MonitorHeader({
           className="border-line bg-pill min-w-[220px]"
         >
           {WFS.map((w) => (
-            <DropdownMenuItem key={w.name} className="gap-2 text-[12px]">
+            <DropdownMenuItem key={w.name} className="gap-2 text-[13px]">
               <span
                 aria-hidden="true"
                 className="size-[7px] rounded-full"
@@ -94,7 +94,7 @@ export function MonitorHeader({
               />
               <span className="sr-only">{ST[w.st].label} —</span>
               <span className="flex-1 font-medium">{w.name}</span>
-              <span className="font-mono text-[9.5px] text-t3">{w.ops}</span>
+              <span className="font-mono text-[10.5px] text-t3">{w.ops}</span>
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
@@ -114,14 +114,14 @@ export function MonitorHeader({
             className="size-1.5 rounded-full bg-err"
             style={{ animation: "blinkdot 1.2s infinite" }}
           />
-          <div className="text-[11px] font-medium text-err-text">
+          <div className="text-[12px] font-medium text-err-text">
             Incident — SMS Welcome failing · 47 errors / 30m
           </div>
         </motion.div>
       )}
 
       {clientView && (
-        <div className="rounded-full border border-line bg-hover px-2.5 py-1 text-[10.5px] font-semibold">
+        <div className="rounded-full border border-line bg-hover px-2.5 py-1 text-[11.5px] font-semibold">
           Client view
         </div>
       )}
@@ -153,7 +153,7 @@ export function MonitorHeader({
             animation: "blinkdot 1.6s infinite",
           }}
         />
-        <div className="text-[11px] font-semibold text-t2">
+        <div className="text-[12px] font-semibold text-t2">
           {paused ? "Paused" : "Live"}
         </div>
       </div>
@@ -162,7 +162,7 @@ export function MonitorHeader({
 
       <Button
         size="sm"
-        className="h-auto cursor-pointer rounded-control px-3.5 py-[7px] text-[12px] font-semibold hover:opacity-85"
+        className="h-auto cursor-pointer rounded-control px-3.5 py-[7px] text-[13px] font-semibold hover:opacity-85"
       >
         Share view
       </Button>

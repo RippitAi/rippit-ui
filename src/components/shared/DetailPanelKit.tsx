@@ -54,9 +54,9 @@ export function JsonValue({ value, depth }: { value: unknown; depth: number }) {
 }
 
 export function JsonBlock({ data }: { data: unknown }) {
-  if (data == null) return <p className="text-[11px] italic text-t3">None</p>;
+  if (data == null) return <p className="text-[12px] italic text-t3">None</p>;
   return (
-    <div className="max-h-64 overflow-auto rounded-code border border-line2 bg-code px-3.5 py-3 font-mono text-[11px] leading-[1.75]">
+    <div className="max-h-64 overflow-auto rounded-code border border-line2 bg-code px-3.5 py-3 font-mono text-[12px] leading-[1.75]">
       <JsonValue value={data} depth={0} />
     </div>
   );
@@ -74,7 +74,7 @@ export function Section({
   return (
     <div className="mb-4">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-[10.5px] font-semibold text-t3">{title}</h3>
+        <h3 className="text-[11.5px] font-semibold text-t3">{title}</h3>
         {action}
       </div>
       {children}
@@ -85,8 +85,8 @@ export function Section({
 export function KvRow({ k, v }: { k: string; v: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 border-b border-line2 px-0.5 py-[9px]">
-      <div className="text-[11px] text-t3">{k}</div>
-      <div className="truncate text-right font-mono text-[10.5px]">{v}</div>
+      <div className="text-[12px] text-t3">{k}</div>
+      <div className="truncate text-right font-mono text-[11.5px]">{v}</div>
     </div>
   );
 }
@@ -102,7 +102,7 @@ export function CopyJsonButton({ data }: { data: unknown }) {
         setTimeout(() => setCopied(false), 1200);
       }}
       aria-label={copied ? "Copied to clipboard" : "Copy JSON to clipboard"}
-      className="flex cursor-pointer items-center gap-1 text-[10px] text-t3 transition-colors hover:text-t1"
+      className="flex cursor-pointer items-center gap-1 text-[11px] text-t3 transition-colors hover:text-t1"
     >
       <span aria-hidden="true">{copied ? "copied" : "copy"}</span>
       {copied ? (

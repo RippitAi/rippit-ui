@@ -51,7 +51,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ kind: st
     <div className="flex h-full min-w-0 flex-col">
       <ViewBar title="Assets" meta={data ? `${data.workflows} workflow${data.workflows === 1 ? "" : "s"} · ${data.uses.length} step${data.uses.length === 1 ? "" : "s"}` : undefined} />
       <ViewBody width={640}>
-        <Link href="/assets" className="mb-2.5 inline-flex items-center gap-1.5 text-[10.5px] font-semibold text-t3 transition-colors hover:text-t1">
+        <Link href="/assets" className="mb-2.5 inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-t3 transition-colors hover:text-t1">
           <ArrowLeft aria-hidden="true" className="size-[11px]" /> all assets
         </Link>
         {current?.error ? (
@@ -63,18 +63,18 @@ export default function AssetDetailPage({ params }: { params: Promise<{ kind: st
                 <KindIcon kind={kind} className="size-[17px]" />
               </span>
               <span className="min-w-0 flex-1">
-                <h2 className="m-0 truncate text-[15px] font-bold tracking-[-0.01em]">{title}</h2>
-                <p className="tabular m-0 mt-[2px] font-mono text-[9.5px] text-t3">
+                <h2 className="m-0 truncate text-[16px] font-bold tracking-[-0.01em]">{title}</h2>
+                <p className="tabular m-0 mt-[2px] font-mono text-[10.5px] text-t3">
                   {kindLabel(kind).toLowerCase()}
                   {data ? ` · ${data.uses.length} use${data.uses.length === 1 ? "" : "s"} across the estate` : ""}
                 </p>
               </span>
               {data?.url ? (
-                <a href={data.url} target="_blank" rel="noopener noreferrer" className="inline-flex h-[26px] items-center gap-1 rounded-control bg-t1 px-2.5 text-[11px] font-semibold text-bg transition-opacity hover:opacity-90">
+                <a href={data.url} target="_blank" rel="noopener noreferrer" className="inline-flex h-[26px] items-center gap-1 rounded-control bg-t1 px-2.5 text-[12px] font-semibold text-bg transition-opacity hover:opacity-90">
                   <ArrowUpRight aria-hidden="true" className="size-[11px]" /> {openLabel(kind)}
                 </a>
               ) : data ? (
-                <span className="text-[9.5px] text-t3" title="Webhooks and endpoints are indexed hashed — Rippit never stores or shows the raw URL">
+                <span className="text-[10.5px] text-t3" title="Webhooks and endpoints are indexed hashed — Rippit never stores or shows the raw URL">
                   no native link
                 </span>
               ) : null}
@@ -97,18 +97,18 @@ export default function AssetDetailPage({ params }: { params: Promise<{ kind: st
                       <Link key={`${k}:${u.nodeId ?? i}`} href={href} className="flex w-full items-center gap-2.5 border-b border-line2 px-3.5 py-[11px] text-left transition-[background] duration-[var(--dur-fast)] last:border-b-0 hover:bg-hover">
                         <AppPuck app={u.app || u.provider} size={22} />
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[11.5px] font-semibold text-t1">
+                          <span className="block truncate text-[12.5px] font-semibold text-t1">
                             {u.workflowName || `${connector.shortLabel} ${u.workflowExternalId}`}
-                            {u.isActive === false && <span className="ml-1.5 text-[9.5px] font-normal text-t3">· inactive</span>}
+                            {u.isActive === false && <span className="ml-1.5 text-[10.5px] font-normal text-t3">· inactive</span>}
                           </span>
-                          <span className="tabular mt-[1px] block truncate font-mono text-[8.5px] text-t3">
+                          <span className="tabular mt-[1px] block truncate font-mono text-[9.5px] text-t3">
                             {connector.nouns.step} {u.ordinal ?? u.nodeId ?? "?"}
                             {u.nodeLabel ? ` · ${u.nodeLabel}` : ""} · {connector.shortLabel}
                             {u.connectionLabel ? ` · ${u.connectionLabel}` : ""}
                             {u.dynamic ? " · mapped at runtime" : ""}
                           </span>
                         </span>
-                        <span className="text-[10px] font-semibold text-t3">open in canvas →</span>
+                        <span className="text-[11px] font-semibold text-t3">open in canvas →</span>
                       </Link>
                     );
                   })
@@ -116,7 +116,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ kind: st
               </RowCard>
             )}
             {data && data.uses.length > 0 && (
-              <p className="mx-0.5 mt-2.5 text-[10px] text-t3">
+              <p className="mx-0.5 mt-2.5 text-[11px] text-t3">
                 Renaming or deleting this asset would ripple into {data.uses.length} step{data.uses.length === 1 ? "" : "s"} across {data.workflows} workflow{data.workflows === 1 ? "" : "s"} — Rippit flags every one before you touch it.
               </p>
             )}

@@ -22,8 +22,8 @@ function NotificationDetail({ id }: { id: string }) {
       .then(() => window.dispatchEvent(new Event("rippit:notifications")))
       .catch(() => {});
   }, [n]);
-  if (!data) return <p className="text-[12px] text-t3">Loading…</p>;
-  if (!n) return <p className="text-[12px] text-t3">This notification is gone.</p>;
+  if (!data) return <p className="text-[13px] text-t3">Loading…</p>;
+  if (!n) return <p className="text-[13px] text-t3">This notification is gone.</p>;
   const a = n.activity;
   const p = a.payload as Record<string, unknown>;
   const row = activityRow(a);
@@ -137,7 +137,7 @@ export default function ActivityPage() {
                 })
                 .catch(() => {})
             }
-            className="h-[26px] cursor-pointer rounded-control border border-line-strong px-2.5 text-[11px] font-semibold text-t2 transition-colors hover:text-t1"
+            className="h-[26px] cursor-pointer rounded-control border border-line-strong px-2.5 text-[12px] font-semibold text-t2 transition-colors hover:text-t1"
           >
             Mark all read
           </button>
@@ -146,7 +146,7 @@ export default function ActivityPage() {
       <ViewBody width={600}>
         <ViewTitle title={mode === "inbox" ? "Inbox" : mode === "all" ? "Everything" : mode === "mine" ? "Mine" : "Watched"} sub={mode === "inbox" ? "mentions · watched and owned workflows · failed runs" : "workspace activity, newest first"} />
         {error && (
-          <p role="alert" className="mb-3 text-[12px] text-err-text">
+          <p role="alert" className="mb-3 text-[13px] text-err-text">
             {error}
           </p>
         )}

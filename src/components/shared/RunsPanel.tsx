@@ -35,7 +35,7 @@ export function LastRunChip({ status, at }: { status: Execution["status"]; at: s
   const t = TONE[status] ?? TONE.unknown;
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full border px-2 py-[2px] text-[9.5px] font-semibold"
+      className="inline-flex items-center gap-1.5 rounded-full border px-2 py-[2px] text-[10.5px] font-semibold"
       style={{
         color: t.text,
         borderColor: `color-mix(in srgb, ${t.accent} 40%, transparent)`,
@@ -97,7 +97,7 @@ export function RunsBody({
 
   return (
     <>
-      <div className="flex flex-none items-center gap-2 border-b border-line2 px-3.5 py-1.5 text-[10.5px] text-t3">
+      <div className="flex flex-none items-center gap-2 border-b border-line2 px-3.5 py-1.5 text-[11.5px] text-t3">
         {data ? <span>{data.executions.length} runs · {failures} failed</span> : <span>Loading…</span>}
         <button
           type="button"
@@ -110,16 +110,16 @@ export function RunsBody({
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-2">
         {error && (
-          <p role="alert" className="px-1.5 text-[11px] text-err-text">
+          <p role="alert" className="px-1.5 text-[12px] text-err-text">
             {error}
           </p>
         )}
-        {!data && !error && <p className="px-1.5 text-[11px] text-t3">Loading…</p>}
+        {!data && !error && <p className="px-1.5 text-[12px] text-t3">Loading…</p>}
         {data && !data.supported && (
-          <p className="px-1.5 text-[11px] text-t3">{data.reason ?? "Runtime status not available for this platform yet."}</p>
+          <p className="px-1.5 text-[12px] text-t3">{data.reason ?? "Runtime status not available for this platform yet."}</p>
         )}
         {data && data.supported && data.executions.length === 0 && (
-          <p className="px-1.5 text-[11px] text-t3">
+          <p className="px-1.5 text-[12px] text-t3">
             {data.refreshing ? "Fetching runs from the platform…" : "No runs in the platform's retained history."}
           </p>
         )}
@@ -133,19 +133,19 @@ export function RunsBody({
               >
                 <div className="flex items-center gap-2">
                   <span aria-hidden="true" className="size-[7px] rounded-full" style={{ background: t.accent, boxShadow: `0 0 6px ${t.accent}` }} />
-                  <span className="text-[11px] font-semibold" style={{ color: t.text }}>
+                  <span className="text-[12px] font-semibold" style={{ color: t.text }}>
                     {t.label}
                   </span>
-                  <span className="text-[10.5px] text-t3" title={e.startedAt ? new Date(e.startedAt).toLocaleString() : undefined}>
+                  <span className="text-[11.5px] text-t3" title={e.startedAt ? new Date(e.startedAt).toLocaleString() : undefined}>
                     {relativeTime(e.startedAt)}
                   </span>
-                  <span className="ml-auto font-mono text-[10px] text-t3">
+                  <span className="ml-auto font-mono text-[11px] text-t3">
                     {e.durationMs != null ? `${e.durationMs} ms` : ""}
                     {e.operations != null ? ` · ${e.operations} ops` : ""}
                   </span>
                 </div>
                 {(e.errorMessage || e.causeModuleId) && (
-                  <div className="mt-1 flex items-start gap-2 text-[10.5px]">
+                  <div className="mt-1 flex items-start gap-2 text-[11.5px]">
                     <span className="min-w-0 flex-1 break-words text-t2">
                       {e.errorName && <span className="font-mono text-t3">{e.errorName}: </span>}
                       {e.errorMessage}
@@ -154,7 +154,7 @@ export function RunsBody({
                       <button
                         type="button"
                         onClick={() => onSelectNode(e.causeModuleId!)}
-                        className="shrink-0 rounded-full border border-line px-2 py-[1px] font-mono text-[9.5px] text-t2 hover:text-t1"
+                        className="shrink-0 rounded-full border border-line px-2 py-[1px] font-mono text-[10.5px] text-t2 hover:text-t1"
                       >
                         module {e.causeModuleId}
                       </button>
@@ -166,7 +166,7 @@ export function RunsBody({
           })}
         </ul>
       </div>
-      <p className="flex-none border-t border-line2 px-3.5 py-1.5 text-[10px] text-t3">
+      <p className="flex-none border-t border-line2 px-3.5 py-1.5 text-[11px] text-t3">
         {data?.fetchedAt ? `As of ${relativeTime(data.fetchedAt)} · status, timing and failing step only — never run data` : "Status, timing and failing step only — never run data"}
       </p>
     </>

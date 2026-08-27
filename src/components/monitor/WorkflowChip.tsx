@@ -17,15 +17,15 @@ export function WorkflowChip({ incident }: { incident: boolean }) {
         className="size-[7px] rounded-full"
         style={{ background: st.dot, boxShadow: `0 0 8px ${st.dot}` }}
       />
-      <div className="text-[12.5px] font-semibold">Lead Capture → Nurture</div>
+      <div className="text-[13.5px] font-semibold">Lead Capture → Nurture</div>
       <div
-        className="rounded-full border px-2 py-[2px] text-[10px] font-semibold"
+        className="rounded-full border px-2 py-[2px] text-[11px] font-semibold"
         style={{ color: st.color, borderColor: st.border }}
       >
         {incident ? "Incident" : "Degraded"}
       </div>
       <div aria-hidden="true" className="h-3.5 w-px bg-line" />
-      <div className="font-mono text-[9.5px] text-t3">last run 18s ago · v2.4</div>
+      <div className="font-mono text-[10.5px] text-t3">last run 18s ago · v2.4</div>
     </motion.div>
   );
 }

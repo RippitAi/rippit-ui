@@ -73,7 +73,7 @@ export function CornerBadge({
   return (
     <span
       aria-hidden="true"
-      className="pointer-events-none absolute -right-[4px] -top-[4px] inline-flex h-[13px] min-w-[13px] items-center justify-center rounded-full px-[3px] font-mono text-[8.5px] font-bold leading-none"
+      className="pointer-events-none absolute -right-[4px] -top-[4px] inline-flex h-[13px] min-w-[13px] items-center justify-center rounded-full px-[3px] font-mono text-[9.5px] font-bold leading-none"
       style={{ background: bg, color: fg }}
     >
       {value}

@@ -31,20 +31,20 @@ export function ChangeRow({ c, onSelectNode }: { c: WorkflowChange; onSelectNode
     <li className={`rounded-control border border-line2 bg-panel px-2.5 py-2 ${c.unseen ? "" : "opacity-80"}`}>
       <div className="flex items-center gap-2">
         <span aria-hidden="true" className="size-[7px] rounded-full" style={{ background: t.accent, boxShadow: `0 0 6px ${t.accent}` }} />
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-t3">{t.label}</span>
-        {c.unseen && <span className="rounded-full border border-line px-1.5 py-[1px] text-[9px] font-semibold text-warn-text">new</span>}
-        <span className="ml-auto text-[10px] text-t3" title={new Date(c.detectedAt).toLocaleString()}>
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-t3">{t.label}</span>
+        {c.unseen && <span className="rounded-full border border-line px-1.5 py-[1px] text-[10px] font-semibold text-warn-text">new</span>}
+        <span className="ml-auto text-[11px] text-t3" title={new Date(c.detectedAt).toLocaleString()}>
           {relativeTime(c.detectedAt)}
         </span>
       </div>
-      <p className="mt-1 text-[11.5px] text-t1">{c.summary}</p>
-      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-t3">
+      <p className="mt-1 text-[12.5px] text-t1">{c.summary}</p>
+      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-t3">
         {c.authorHint?.name && <span>by {c.authorHint.name}</span>}
         {c.nodeId && onSelectNode && (
           <button
             type="button"
             onClick={() => onSelectNode(c.nodeId!)}
-            className="rounded-full border border-line px-2 py-[1px] font-mono text-[9.5px] text-t2 hover:text-t1"
+            className="rounded-full border border-line px-2 py-[1px] font-mono text-[10.5px] text-t2 hover:text-t1"
           >
             step {c.nodeId}
           </button>
@@ -97,16 +97,16 @@ export function ChangesBody({
   return (
     <>
       {data && (
-        <p className="flex-none border-b border-line2 px-3.5 py-1.5 text-[10.5px] text-t3">
+        <p className="flex-none border-b border-line2 px-3.5 py-1.5 text-[11.5px] text-t3">
           {data.changes.length} change{data.changes.length === 1 ? "" : "s"} · {data.unseen} new since you last looked
           {data.lastSeenAt ? ` · you last looked ${relativeTime(data.lastSeenAt)}` : ""}
         </p>
       )}
       <div className="min-h-0 flex-1 overflow-auto p-2">
-        {error && <p role="alert" className="px-1.5 text-[11px] text-err-text">{error}</p>}
-        {!data && !error && <p className="px-1.5 text-[11px] text-t3">Loading…</p>}
+        {error && <p role="alert" className="px-1.5 text-[12px] text-err-text">{error}</p>}
+        {!data && !error && <p className="px-1.5 text-[12px] text-t3">Loading…</p>}
         {data && data.changes.length === 0 && (
-          <p className="px-1.5 text-[11px] text-t3">
+          <p className="px-1.5 text-[12px] text-t3">
             No changes recorded yet. Rippit snapshots this workflow on every sync and lists what differs from the previous snapshot.
           </p>
         )}
@@ -115,7 +115,7 @@ export function ChangesBody({
           const rows = byVersion.get(v) ?? [];
           return (
             <section key={v} className="mb-3">
-              <h3 className="mb-1 flex items-center gap-2 px-1 text-[10px] font-semibold text-t3">
+              <h3 className="mb-1 flex items-center gap-2 px-1 text-[11px] font-semibold text-t3">
                 <span>Sync #{v}</span>
                 {meta?.syncedAt && <span title={new Date(meta.syncedAt).toLocaleString()}>· {relativeTime(meta.syncedAt)}</span>}
                 {meta?.authorHint?.name && <span>· edited by {meta.authorHint.name}</span>}
@@ -128,7 +128,7 @@ export function ChangesBody({
                   <button
                     type="button"
                     onClick={() => ackVersion(provider, externalId, v).then(() => setGen((g) => g + 1)).catch(() => {})}
-                    className="rounded-full border border-line px-2 py-[1px] text-[9.5px] font-semibold text-t2 hover:text-t1"
+                    className="rounded-full border border-line px-2 py-[1px] text-[10.5px] font-semibold text-t2 hover:text-t1"
                   >
                     Mark reviewed
                   </button>
@@ -143,7 +143,7 @@ export function ChangesBody({
           );
         })}
       </div>
-      <p className="flex-none border-t border-line2 px-3.5 py-1.5 text-[10px] text-t3">
+      <p className="flex-none border-t border-line2 px-3.5 py-1.5 text-[11px] text-t3">
         Detected by Rippit at sync (platform-independent); who/when comes from Make&apos;s edit log where available.
       </p>
     </>

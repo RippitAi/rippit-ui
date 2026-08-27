@@ -7,6 +7,7 @@ import {
   Bell,
   BellRing,
   Activity,
+  HeartPulse,
   History,
   Info,
   MessageSquare,
@@ -28,7 +29,7 @@ import type { StatusPillInfo } from "@/lib/connectors/types";
  * (Info · Changes · Comments · Runs · Notes) · system map · Open in. Under
  * 880px the owner chip and meta hide and Open-in becomes an icon.
  */
-export type DockTool = "info" | "changes" | "comments" | "runs" | "notes";
+export type DockTool = "health" | "info" | "changes" | "comments" | "runs" | "notes";
 
 export interface ToolSpec {
   id: DockTool;
@@ -40,6 +41,7 @@ export interface ToolSpec {
 }
 
 const TOOL_ICON: Record<DockTool, LucideIcon> = {
+  health: HeartPulse,
   info: Info,
   changes: History,
   comments: MessageSquare,
@@ -119,7 +121,7 @@ export function ActionBar({
         onClick={toggleRail}
       />
       <AppPuck app={app} size={22} title={accountTitle} />
-      <h1 className="min-w-[120px] flex-[0_1_auto] truncate text-[12.5px] font-semibold tracking-[-0.01em]" title={`${name} — ${accountTitle}`}>
+      <h1 className="min-w-[120px] flex-[0_1_auto] truncate text-[13.5px] font-semibold tracking-[-0.01em]" title={`${name} — ${accountTitle}`}>
         {name}
       </h1>
       <StatusPill pill={statusPill} pulse={live} />
@@ -133,9 +135,9 @@ export function ActionBar({
           type="button"
           onClick={onOwner}
           title={ownerName ? `Owner: ${ownerName}` : "No owner — open Info to set one"}
-          className="inline-flex h-6 flex-none cursor-pointer items-center gap-1.5 rounded-full border border-line bg-hover py-0 pl-[3px] pr-[9px] text-[10.5px] font-semibold text-t2 transition-colors duration-[var(--dur-fast)] hover:border-line-strong hover:text-t1"
+          className="inline-flex h-6 flex-none cursor-pointer items-center gap-1.5 rounded-full border border-line bg-hover py-0 pl-[3px] pr-[9px] text-[11.5px] font-semibold text-t2 transition-colors duration-[var(--dur-fast)] hover:border-line-strong hover:text-t1"
         >
-          <span className="inline-flex size-[18px] items-center justify-center rounded-full border border-line bg-pill text-[7.5px] font-bold text-t1">{initials}</span>
+          <span className="inline-flex size-[18px] items-center justify-center rounded-full border border-line bg-pill text-[8.5px] font-bold text-t1">{initials}</span>
           {ownerName ? (ownerIsYou ? "you" : ownerName.split(" ")[0]) : "no owner"}
         </button>
       )}
@@ -147,7 +149,7 @@ export function ActionBar({
         onClick={onToggleWatch}
       />
       {!narrow && meta && (
-        <span className="tabular whitespace-nowrap font-mono text-[9px] text-t3" title={accountTitle}>
+        <span className="tabular whitespace-nowrap font-mono text-[10px] text-t3" title={accountTitle}>
           {meta}
         </span>
       )}
@@ -177,7 +179,7 @@ export function ActionBar({
               href={nativeUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex h-[26px] items-center gap-1 rounded-control bg-t1 px-2.5 text-[11px] font-semibold text-bg transition-[opacity,transform] duration-[var(--dur-fast)] hover:opacity-90 active:scale-[.98]"
+              className="inline-flex h-[26px] items-center gap-1 rounded-control bg-t1 px-2.5 text-[12px] font-semibold text-bg transition-[opacity,transform] duration-[var(--dur-fast)] hover:opacity-90 active:scale-[.98]"
             >
               <ArrowUpRight aria-hidden="true" className="size-[11px]" /> Open in {providerLabel}
             </a>

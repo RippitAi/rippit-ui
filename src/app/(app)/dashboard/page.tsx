@@ -45,8 +45,8 @@ function Stat({ label, value, icon: Icon, delay, danger }: { label: string; valu
         <Icon aria-hidden="true" className="size-[13px]" />
       </span>
       <span>
-        <span className="tabular block text-[17px] font-bold leading-none">{n}</span>
-        <span className="mt-[3px] block text-[9.5px] text-t3">{label}</span>
+        <span className="tabular block text-[18px] font-bold leading-none">{n}</span>
+        <span className="mt-[3px] block text-[10.5px] text-t3">{label}</span>
       </span>
     </div>
   );
@@ -62,8 +62,8 @@ function WorkflowRow({ workflow, tags, lastRun, changed, accountName }: { workfl
         <AppPuck app={workflow.app || workflow.provider} size={22} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[11.5px] font-semibold text-t1">{workflow.name}</span>
-        <span className="tabular mt-[1px] block truncate font-mono text-[8.5px] text-t3">
+        <span className="block truncate text-[12.5px] font-semibold text-t1">{workflow.name}</span>
+        <span className="tabular mt-[1px] block truncate font-mono text-[9.5px] text-t3">
           {connector.shortLabel}
           {accountName ? ` · ${accountName}` : ""}
           {folder ? ` · ${folder}` : ""}
@@ -75,7 +75,7 @@ function WorkflowRow({ workflow, tags, lastRun, changed, accountName }: { workfl
           {tags.slice(0, 2).map((t) => (
             <TagChip key={t.id} tag={t} size="xs" />
           ))}
-          {tags.length > 2 && <span className="text-[9.5px] text-t3">+{tags.length - 2}</span>}
+          {tags.length > 2 && <span className="text-[10.5px] text-t3">+{tags.length - 2}</span>}
         </span>
       )}
       {lastRun && (lastRun.status === "error" || lastRun.status === "incomplete") && <LastRunChip status={lastRun.status} at={lastRun.at} />}
@@ -227,7 +227,9 @@ export default function DashboardPage() {
           <Stat label="Workflows" value={all.length} icon={Network} delay={0} />
           <Stat label="Active" value={counts.active} icon={Boxes} delay={0.05} />
           <Stat label="Cross-links" value={linkMap?.stats.links ?? 0} icon={Link2} delay={0.1} />
-          <Stat label="Broken" value={broken} icon={Unplug} delay={0.15} danger />
+          <Link href="/health" aria-label={`Health — ${broken} broken`} title="Open the health board" className="block rounded-card transition-transform duration-[var(--dur-fast)] hover:-translate-y-[1px]">
+            <Stat label="Broken · Health board" value={broken} icon={Unplug} delay={0.15} danger />
+          </Link>
         </div>
 
         <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -237,9 +239,9 @@ export default function DashboardPage() {
           <div className="flex-1" />
           <label className="flex h-[26px] items-center gap-[7px] rounded-control border border-line bg-hover px-[9px] transition-[border-color] duration-[var(--dur-fast)] focus-within:border-line-strong">
             <Search aria-hidden="true" className="size-[11px] text-t3" />
-            <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search…" aria-label="Search workflows" className="w-[140px] min-w-0 border-0 bg-transparent text-[11px] text-t1 outline-none placeholder:text-t3" />
+            <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search…" aria-label="Search workflows" className="w-[140px] min-w-0 border-0 bg-transparent text-[12px] text-t1 outline-none placeholder:text-t3" />
           </label>
-          <span className="tabular font-mono text-[9px] text-t3">{filtered.length}</span>
+          <span className="tabular font-mono text-[10px] text-t3">{filtered.length}</span>
         </div>
 
         <RowCard delay={0.18}>
@@ -251,7 +253,7 @@ export default function DashboardPage() {
             </div>
           )}
           {!loading && filtered.length === 0 && (
-            <p className="px-4 py-10 text-center text-[12px] text-t3">
+            <p className="px-4 py-10 text-center text-[13px] text-t3">
               {nothingConnected ? (
                 <>
                   No workflows yet —{" "}
@@ -286,9 +288,9 @@ export default function DashboardPage() {
                     className="sticky top-0 z-[1] flex w-full cursor-pointer items-center gap-2 border-b border-line2 bg-panel/95 px-3.5 py-1.5 text-left backdrop-blur-[6px]"
                   >
                     <ChevronDown aria-hidden="true" className={`size-3 text-t3 transition-transform duration-[var(--dur-fast)] ${isCollapsed ? "-rotate-90" : ""}`} />
-                    <span className="text-[11px] font-semibold text-t1">{g.label}</span>
-                    {g.sub && <span className="text-[10px] text-t3">{g.sub}</span>}
-                    <span className="tabular rounded-[5px] border border-line bg-hover px-1.5 py-0.5 font-mono text-[9px] text-t2">{g.items.length}</span>
+                    <span className="text-[12px] font-semibold text-t1">{g.label}</span>
+                    {g.sub && <span className="text-[11px] text-t3">{g.sub}</span>}
+                    <span className="tabular rounded-[5px] border border-line bg-hover px-1.5 py-0.5 font-mono text-[10px] text-t2">{g.items.length}</span>
                   </button>
                   {!isCollapsed &&
                     g.items.map((w) => {

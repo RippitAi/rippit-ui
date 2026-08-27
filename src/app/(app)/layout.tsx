@@ -54,7 +54,7 @@ function WorkspaceScopedShell({ children }: { children: React.ReactNode }) {
   }
   if (!current && error) {
     return (
-      <div className="flex h-svh items-center justify-center bg-bg p-4 text-[12px] text-t2">
+      <div className="flex h-svh items-center justify-center bg-bg p-4 text-[13px] text-t2">
         Could not load your workspace: {error}
       </div>
     );

@@ -95,7 +95,7 @@ export function Monitor({
   /* Theme comes from the app-wide next-themes provider (persisted, no-flash).
      Only the JS-side canvas colors need the resolved value. */
   const { resolvedTheme } = useTheme();
-  const T = resolvedTheme === "light" ? JS_THEMES.light : JS_THEMES.dark;
+  const T = resolvedTheme === "dark" ? JS_THEMES.dark : JS_THEMES.light;
 
   /* ---------- geometry ---------- */
 

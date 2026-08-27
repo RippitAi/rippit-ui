@@ -66,7 +66,7 @@ export function DockHost({
         </button>
       </div>
       <div className="thin-scroll flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
-      {footer && <div className="flex-none border-t border-line2 px-3.5 py-1.5 text-[10px] text-t3">{footer}</div>}
+      {footer && <div className="flex-none border-t border-line2 px-3.5 py-1.5 text-[11px] text-t3">{footer}</div>}
     </aside>
   );
 }
@@ -77,8 +77,8 @@ export function DockTitle({ title, subtitle, icon }: { title: string; subtitle?:
     <>
       {icon && <span className="flex-none text-t3">{icon}</span>}
       <span className="min-w-0">
-        <span className="block truncate text-[12.5px] font-semibold leading-tight">{title}</span>
-        {subtitle && <span className="tabular block truncate font-mono text-[8.5px] text-t3">{subtitle}</span>}
+        <span className="block truncate text-[13.5px] font-semibold leading-tight">{title}</span>
+        {subtitle && <span className="tabular block truncate font-mono text-[9.5px] text-t3">{subtitle}</span>}
       </span>
     </>
   );

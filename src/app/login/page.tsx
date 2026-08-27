@@ -141,15 +141,15 @@ export default function LoginPage() {
           >
             <div className="size-3 rounded-full bg-bg" />
           </div>
-          <h1 className="text-[26px] font-bold tracking-[-0.5px]">rippit</h1>
-          <p className="mt-1.5 text-[13px] text-t2">{TITLES[mode]}</p>
+          <h1 className="text-[27px] font-bold tracking-[-0.5px]">rippit</h1>
+          <p className="mt-1.5 text-[14px] text-t2">{TITLES[mode]}</p>
         </div>
 
         <div className="space-y-4 rounded-card border border-line bg-panel p-6 shadow-[var(--shadow-float)] backdrop-blur-[14px]">
           {supabaseMisconfigured() && (
             <div
               role="alert"
-              className="rounded-control border border-[color-mix(in_srgb,var(--warn)_32%,transparent)] bg-[color-mix(in_srgb,var(--warn)_10%,transparent)] px-3 py-2 text-[11.5px] leading-relaxed text-warn-text"
+              className="rounded-control border border-[color-mix(in_srgb,var(--warn)_32%,transparent)] bg-[color-mix(in_srgb,var(--warn)_10%,transparent)] px-3 py-2 text-[12.5px] leading-relaxed text-warn-text"
             >
               This deployment has no <code className="font-mono">NEXT_PUBLIC_SUPABASE_URL</code>{" "}
               configured — sign-in requests are falling back to a local dev
@@ -162,7 +162,7 @@ export default function LoginPage() {
               <div>
                 <label
                   htmlFor="email"
-                  className="mb-1.5 block text-[11px] font-semibold text-t3"
+                  className="mb-1.5 block text-[12px] font-semibold text-t3"
                 >
                   Email
                 </label>
@@ -176,7 +176,7 @@ export default function LoginPage() {
                   placeholder="you@company.com"
                   aria-invalid={error ? true : undefined}
                   aria-describedby={error ? "login-error" : undefined}
-                  className="h-9 rounded-control border-line-strong bg-hover text-[13px] placeholder:text-t3"
+                  className="h-9 rounded-control border-line-strong bg-hover text-[14px] placeholder:text-t3"
                 />
               </div>
             )}
@@ -186,7 +186,7 @@ export default function LoginPage() {
                 <div className="mb-1.5 flex items-baseline justify-between">
                   <label
                     htmlFor="password"
-                    className="block text-[11px] font-semibold text-t3"
+                    className="block text-[12px] font-semibold text-t3"
                   >
                     Password
                   </label>
@@ -198,7 +198,7 @@ export default function LoginPage() {
                         setError("");
                         setNotice("");
                       }}
-                      className="cursor-pointer text-[10.5px] text-t3 underline-offset-2 hover:text-t1 hover:underline"
+                      className="cursor-pointer text-[11.5px] text-t3 underline-offset-2 hover:text-t1 hover:underline"
                     >
                       Forgot?
                     </button>
@@ -216,7 +216,7 @@ export default function LoginPage() {
                   placeholder="••••••••"
                   aria-invalid={error ? true : undefined}
                   aria-describedby={error ? "login-error" : undefined}
-                  className="h-9 rounded-control border-line-strong bg-hover text-[13px] placeholder:text-t3"
+                  className="h-9 rounded-control border-line-strong bg-hover text-[14px] placeholder:text-t3"
                 />
               </div>
             )}
@@ -225,7 +225,7 @@ export default function LoginPage() {
               <div>
                 <label
                   htmlFor="otp"
-                  className="mb-1.5 block text-[11px] font-semibold text-t3"
+                  className="mb-1.5 block text-[12px] font-semibold text-t3"
                 >
                   6-digit code
                 </label>
@@ -240,13 +240,13 @@ export default function LoginPage() {
                   placeholder="123456"
                   aria-invalid={error ? true : undefined}
                   aria-describedby={error ? "login-error" : undefined}
-                  className="h-9 rounded-control border-line-strong bg-hover text-center font-mono text-[15px] tracking-[0.3em] placeholder:text-t3"
+                  className="h-9 rounded-control border-line-strong bg-hover text-center font-mono text-[16px] tracking-[0.3em] placeholder:text-t3"
                 />
               </div>
             )}
 
             {notice && (
-              <p role="status" className="text-[12px] text-t2">
+              <p role="status" className="text-[13px] text-t2">
                 {notice}
               </p>
             )}
@@ -254,7 +254,7 @@ export default function LoginPage() {
               <div
                 role="alert"
                 id="login-error"
-                className="anim-fade-up rounded-control border border-[color-mix(in_srgb,var(--err)_32%,transparent)] bg-[color-mix(in_srgb,var(--err)_10%,transparent)] px-3 py-2 text-[12px] text-err-text"
+                className="anim-fade-up rounded-control border border-[color-mix(in_srgb,var(--err)_32%,transparent)] bg-[color-mix(in_srgb,var(--err)_10%,transparent)] px-3 py-2 text-[13px] text-err-text"
               >
                 {error}
               </div>
@@ -263,7 +263,7 @@ export default function LoginPage() {
             <Button
               type="submit"
               disabled={busy}
-              className="h-auto w-full cursor-pointer rounded-control py-2.5 text-[12.5px] font-semibold hover:opacity-85 disabled:opacity-50"
+              className="h-auto w-full cursor-pointer rounded-control py-2.5 text-[13.5px] font-semibold hover:opacity-85 disabled:opacity-50"
             >
               {busy ? (
                 <span className="inline-flex items-center gap-2">
@@ -283,7 +283,7 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="flex items-center justify-between text-[11px] text-t3">
+          <div className="flex items-center justify-between text-[12px] text-t3">
             {mode === "signin" ? (
               <>
                 <button
@@ -314,7 +314,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <p className="mt-6 text-center font-mono text-[10px] text-t3">
+        <p className="mt-6 text-center font-mono text-[11px] text-t3">
           rippit · workflow monitor
         </p>
       </div>

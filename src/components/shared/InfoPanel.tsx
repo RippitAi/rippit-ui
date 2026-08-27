@@ -83,14 +83,14 @@ export function InfoBody({
                 href={nativeUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded-full border border-line-strong px-2.5 py-[3px] text-[10.5px] font-semibold text-t2 hover:border-t1 hover:text-t1"
+                className="inline-flex items-center gap-1 rounded-full border border-line-strong px-2.5 py-[3px] text-[11.5px] font-semibold text-t2 hover:border-t1 hover:text-t1"
               >
                 Open in {connector.shortLabel}
                 <ArrowUpRight aria-hidden="true" className="size-3" />
               </a>
             )}
             {linkedSetHref && (
-              <Link href={linkedSetHref} className="inline-flex items-center gap-1 rounded-full border border-line-strong px-2.5 py-[3px] text-[10.5px] font-semibold text-t2 hover:border-t1 hover:text-t1">
+              <Link href={linkedSetHref} className="inline-flex items-center gap-1 rounded-full border border-line-strong px-2.5 py-[3px] text-[11.5px] font-semibold text-t2 hover:border-t1 hover:text-t1">
                 View linked set →
               </Link>
             )}

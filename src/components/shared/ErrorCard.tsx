@@ -21,24 +21,24 @@ export function ErrorCard({
       >
         <div
           aria-hidden="true"
-          className="mx-auto mb-3 flex size-9 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--err)_32%,transparent)] bg-[color-mix(in_srgb,var(--err)_10%,transparent)] text-[15px] font-bold text-err-text"
+          className="mx-auto mb-3 flex size-9 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--err)_32%,transparent)] bg-[color-mix(in_srgb,var(--err)_10%,transparent)] text-[16px] font-bold text-err-text"
         >
           !
         </div>
-        <h1 className="mb-1.5 text-[14px] font-semibold">{title}</h1>
-        <p className="mb-4 text-[12px] text-t2">{message}</p>
+        <h1 className="mb-1.5 text-[15px] font-semibold">{title}</h1>
+        <p className="mb-4 text-[13px] text-t2">{message}</p>
         <div className="flex items-center justify-center gap-4">
           {onRetry && (
             <button
               onClick={onRetry}
-              className="cursor-pointer text-[12px] font-semibold text-t1 underline-offset-4 hover:underline"
+              className="cursor-pointer text-[13px] font-semibold text-t1 underline-offset-4 hover:underline"
             >
               Try again
             </button>
           )}
           <Link
             href={backHref}
-            className="text-[12px] font-semibold text-t1 underline-offset-4 hover:underline"
+            className="text-[13px] font-semibold text-t1 underline-offset-4 hover:underline"
           >
             {backLabel}
           </Link>

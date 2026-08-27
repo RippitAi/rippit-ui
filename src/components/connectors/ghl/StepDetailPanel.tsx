@@ -51,8 +51,8 @@ export default function StepDetailSections({ data }: DetailSectionsProps) {
 
       {webhookUrl && (
         <Section title="Webhook target">
-          <div className="break-all rounded-code border border-line2 bg-code px-3.5 py-3 font-mono text-[11px] leading-[1.6] text-t1">
-            <span className="mr-2 inline-flex rounded-full border border-[color-mix(in_srgb,var(--warn)_32%,transparent)] bg-[color-mix(in_srgb,var(--warn)_10%,transparent)] px-[7px] py-[1px] text-[9.5px] font-semibold text-warn-text">
+          <div className="break-all rounded-code border border-line2 bg-code px-3.5 py-3 font-mono text-[12px] leading-[1.6] text-t1">
+            <span className="mr-2 inline-flex rounded-full border border-[color-mix(in_srgb,var(--warn)_32%,transparent)] bg-[color-mix(in_srgb,var(--warn)_10%,transparent)] px-[7px] py-[1px] text-[10.5px] font-semibold text-warn-text">
               {String(attributes?.method || "POST")}
             </span>
             {webhookUrl}
@@ -64,7 +64,7 @@ export default function StepDetailSections({ data }: DetailSectionsProps) {
         <Section title="Branches">
           <div className="mb-2 flex flex-wrap gap-1.5">
             {branches.map((b, i) => (
-              <span key={i} className="rounded-full border border-line bg-pill px-2.5 py-[3px] text-[10px] font-semibold text-t2">
+              <span key={i} className="rounded-full border border-line bg-pill px-2.5 py-[3px] text-[11px] font-semibold text-t2">
                 {String((b as Record<string, unknown>)?.name ?? `Branch ${i + 1}`)}
               </span>
             ))}

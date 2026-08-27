@@ -42,9 +42,9 @@ export default function MentionsPage() {
         <ViewBar title="Mentions & comments" />
         <ViewBody>
           {!data ? (
-            <p className="text-[12px] text-t3">Loading…</p>
+            <p className="text-[13px] text-t3">Loading…</p>
           ) : !c ? (
-            <p className="text-[12px] text-t3">This thread no longer mentions you, or was resolved.</p>
+            <p className="text-[13px] text-t3">This thread no longer mentions you, or was resolved.</p>
           ) : (
             <div key={c.id}>
               <DetailHeader
@@ -75,7 +75,7 @@ export default function MentionsPage() {
       <ViewBody width={600}>
         <ViewTitle title="Mentions & comments" sub="open threads that @mention you · click to reply in context" />
         {error && (
-          <p role="alert" className="mb-3 text-[12px] text-err-text">
+          <p role="alert" className="mb-3 text-[13px] text-err-text">
             {error}
           </p>
         )}

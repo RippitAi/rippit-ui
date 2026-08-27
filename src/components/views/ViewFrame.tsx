@@ -16,7 +16,7 @@ export function ViewBar({ title, meta: _meta, children }: { title: string; meta?
   return (
     <div className="flex h-[46px] flex-none items-center gap-2.5 border-b border-line px-3">
       {available && <IconBtn icon={railOpen ? PanelLeftClose : PanelLeftOpen} label={railOpen ? "Hide side panel ( [ )" : "Show side panel ( [ )"} size={26} onClick={toggleRail} />}
-      <h1 className="text-[12.5px] font-semibold tracking-[-0.01em]">{title}</h1>
+      <h1 className="text-[13.5px] font-semibold tracking-[-0.01em]">{title}</h1>
       <div className="flex-1" />
       {children}
     </div>
@@ -46,8 +46,8 @@ export function ViewTitle({ title, sub, action }: { title: string; sub?: React.R
   return (
     <div className="mb-3 flex items-start gap-3">
       <div className="min-w-0 flex-1">
-        <h2 className="m-0 text-[15px] font-bold tracking-[-0.01em]">{title}</h2>
-        {sub && <p className="tabular m-0 mt-[3px] font-mono text-[9.5px] text-t3">{sub}</p>}
+        <h2 className="m-0 text-[16px] font-bold tracking-[-0.01em]">{title}</h2>
+        {sub && <p className="tabular m-0 mt-[3px] font-mono text-[10.5px] text-t3">{sub}</p>}
       </div>
       {action}
     </div>
@@ -55,5 +55,5 @@ export function ViewTitle({ title, sub, action }: { title: string; sub?: React.R
 }
 
 export function EmptyRow({ children }: { children: React.ReactNode }) {
-  return <p className="px-4 py-8 text-center text-[12px] italic text-t3">{children}</p>;
+  return <p className="px-4 py-8 text-center text-[13px] italic text-t3">{children}</p>;
 }

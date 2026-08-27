@@ -103,11 +103,11 @@ export function FeedList({ rows, empty }: { rows: FeedRow[]; empty: React.ReactN
               {r.unread && <span aria-hidden="true" className="absolute -right-[3px] -top-[3px] size-[7px] rounded-full bg-warn" style={{ boxShadow: "0 0 6px var(--warn)" }} />}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-[11.5px] leading-[1.5] text-t1">
+              <span className="block text-[12.5px] leading-[1.5] text-t1">
                 {r.who ? <span className="font-semibold">{r.who} — </span> : null}
                 {r.text}
               </span>
-              <span className="tabular mt-[2px] block truncate font-mono text-[8.5px] text-t3">
+              <span className="tabular mt-[2px] block truncate font-mono text-[9.5px] text-t3">
                 {r.sub}
                 {r.when ? ` · ${relativeTime(r.when)}` : ""}
               </span>

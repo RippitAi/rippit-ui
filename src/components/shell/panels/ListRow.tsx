@@ -40,8 +40,8 @@ export function ListRow({
         </span>
       ) : null)}
       <span className="min-w-0 flex-1">
-        <span className={`block truncate text-[10.5px] leading-[1.35] ${active || unread ? "font-semibold text-t1" : "text-t1"}`}>{title}</span>
-        {sub && <span className="tabular block truncate font-mono text-[8px] leading-[1.4] text-t3">{sub}</span>}
+        <span className={`block truncate text-[11.5px] leading-[1.35] ${active || unread ? "font-semibold text-t1" : "text-t1"}`}>{title}</span>
+        {sub && <span className="tabular block truncate font-mono text-[9px] leading-[1.4] text-t3">{sub}</span>}
       </span>
       {trailing}
     </Link>
@@ -51,9 +51,9 @@ export function ListRow({
 export function PanelSection({ title, count, children }: { title: string; count?: number | string; children: React.ReactNode }) {
   return (
     <section className="mb-1.5" aria-label={title}>
-      <p className="flex items-center gap-1.5 px-1.5 pb-0.5 pt-1 text-[9.5px] font-semibold uppercase tracking-wide text-t3">
+      <p className="flex items-center gap-1.5 px-1.5 pb-0.5 pt-1 text-[10.5px] font-semibold uppercase tracking-wide text-t3">
         {title}
-        {count !== undefined && <span className="tabular font-mono text-[8.5px] normal-case">{count}</span>}
+        {count !== undefined && <span className="tabular font-mono text-[9.5px] normal-case">{count}</span>}
       </p>
       {children}
     </section>
@@ -61,7 +61,7 @@ export function PanelSection({ title, count, children }: { title: string; count?
 }
 
 export function PanelEmpty({ children }: { children: React.ReactNode }) {
-  return <p className="px-1.5 py-1.5 text-[10px] italic text-t3">{children}</p>;
+  return <p className="px-1.5 py-1.5 text-[11px] italic text-t3">{children}</p>;
 }
 
 export function PanelSkeleton({ rows = 4 }: { rows?: number }) {

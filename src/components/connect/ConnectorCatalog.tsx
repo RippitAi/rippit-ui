@@ -23,7 +23,7 @@ export function ConnectorGlyph({
   return (
     <div
       aria-hidden="true"
-      className="flex flex-none items-center justify-center rounded-[11px] border border-white/25 font-mono text-[12px] font-bold text-white"
+      className="flex flex-none items-center justify-center rounded-[11px] border border-white/25 font-mono text-[13px] font-bold text-white"
       style={{
         width: size,
         height: size,
@@ -56,17 +56,17 @@ function OAuthButton({ connector }: { connector: ConnectorDescriptor }) {
             setBusy(false);
           }
         }}
-        className="h-auto w-full cursor-pointer rounded-control py-2.5 text-[12.5px] font-semibold hover:opacity-85 disabled:opacity-50"
+        className="h-auto w-full cursor-pointer rounded-control py-2.5 text-[13.5px] font-semibold hover:opacity-85 disabled:opacity-50"
       >
         {busy ? "Redirecting…" : `Connect with ${connector.label} (official OAuth)`}
         {!busy && <ArrowRight aria-hidden="true" className="size-3.5" />}
       </Button>
-      <p className="text-[10.5px] text-t3">
+      <p className="text-[11.5px] text-t3">
         Installs Rippit on one sub-account. OAuth returns workflow names and
         status only — keep the extension connected for step-level detail.
       </p>
       {error && (
-        <p role="alert" className="text-[11px] text-err-text">
+        <p role="alert" className="text-[12px] text-err-text">
           {error}
         </p>
       )}
@@ -94,7 +94,7 @@ export function ConnectFlow({
 
   if (connector.connect.type === "extension") {
     return (
-      <div className="flex flex-col gap-2.5 text-[12px] text-t2">
+      <div className="flex flex-col gap-2.5 text-[13px] text-t2">
         <ol className="list-decimal space-y-1.5 pl-4">
           {connector.connect.instructions.map((step, i) => (
             <li key={i}>{step}</li>
@@ -122,7 +122,7 @@ export function ConnectFlow({
     return oauthAvailable ? (
       <OAuthButton connector={connector} />
     ) : (
-      <p className="text-[12px] italic text-t3">
+      <p className="text-[13px] italic text-t3">
         OAuth is not configured on this server yet.
       </p>
     );
@@ -152,7 +152,7 @@ export function ConnectFlow({
           <div key={field.name}>
             <label
               htmlFor={inputId}
-              className="mb-1.5 block text-[11px] font-semibold text-t3"
+              className="mb-1.5 block text-[12px] font-semibold text-t3"
             >
               {field.label}
             </label>
@@ -167,12 +167,12 @@ export function ConnectFlow({
               placeholder={field.placeholder}
               aria-invalid={error ? true : undefined}
               aria-describedby={error ? errorId : undefined}
-              className="h-9 rounded-control border-line-strong bg-hover text-[13px] tabular placeholder:text-t3"
+              className="h-9 rounded-control border-line-strong bg-hover text-[14px] tabular placeholder:text-t3"
             />
           </div>
         );
       })}
-      {helpText && <p className="text-[11px] text-t3">{helpText}</p>}
+      {helpText && <p className="text-[12px] text-t3">{helpText}</p>}
 
       {error && (
         <motion.div
@@ -180,7 +180,7 @@ export function ConnectFlow({
           id={`${formId}-error`}
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-control border border-[color-mix(in_srgb,var(--err)_32%,transparent)] bg-[color-mix(in_srgb,var(--err)_10%,transparent)] px-3 py-2 text-[12px] text-err-text"
+          className="rounded-control border border-[color-mix(in_srgb,var(--err)_32%,transparent)] bg-[color-mix(in_srgb,var(--err)_10%,transparent)] px-3 py-2 text-[13px] text-err-text"
         >
           {error}
         </motion.div>
@@ -189,7 +189,7 @@ export function ConnectFlow({
       <Button
         type="submit"
         disabled={busy}
-        className="h-auto w-full cursor-pointer rounded-control py-2.5 text-[12.5px] font-semibold hover:opacity-85 disabled:opacity-50"
+        className="h-auto w-full cursor-pointer rounded-control py-2.5 text-[13.5px] font-semibold hover:opacity-85 disabled:opacity-50"
       >
         {busy ? "Connecting…" : "Connect"}
         {!busy && <ArrowRight aria-hidden="true" className="size-3.5" />}
@@ -256,25 +256,25 @@ export function ConnectorCatalog({
             >
               <ConnectorGlyph connector={connector} />
               <div className="min-w-0 flex-1">
-                <p className="text-[13px] font-semibold">{connector.label}</p>
-                <p className="truncate text-[11px] text-t3">
+                <p className="text-[14px] font-semibold">{connector.label}</p>
+                <p className="truncate text-[12px] text-t3">
                   {connector.description}
                 </p>
               </div>
               {connected ? (
                 needsReauth ? (
-                  <span className="flex items-center gap-1.5 text-[10.5px] font-semibold text-warn-text">
+                  <span className="flex items-center gap-1.5 text-[11.5px] font-semibold text-warn-text">
                     Needs reauth
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1.5 text-[10.5px] font-semibold text-ok-text">
+                  <span className="flex items-center gap-1.5 text-[11.5px] font-semibold text-ok-text">
                     <Check aria-hidden="true" className="size-3" />
                     Connected
                     {conns.length > 1 ? ` · ${conns.length}` : ""}
                   </span>
                 )
               ) : (
-                <span className="text-[10.5px] font-semibold text-t3">
+                <span className="text-[11.5px] font-semibold text-t3">
                   Not connected
                 </span>
               )}
@@ -318,10 +318,10 @@ export function ConnectorCatalog({
           <Puzzle className="size-4" />
         </div>
         <div>
-          <p className="text-[13px] font-semibold text-t2">
+          <p className="text-[14px] font-semibold text-t2">
             More platforms coming
           </p>
-          <p className="text-[11px]">
+          <p className="text-[12px]">
             Zapier, n8n, Close, and more — Rippit is built connector-first.
           </p>
         </div>

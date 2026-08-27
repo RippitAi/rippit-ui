@@ -3,7 +3,7 @@ export function StatusLine({ parts, zoom, className = "" }: { parts: (string | n
   return (
     <span
       aria-live="off"
-      className={`tabular pointer-events-none absolute bottom-3 left-3 z-[2] font-mono text-[9px] text-t3 ${className}`}
+      className={`tabular pointer-events-none absolute bottom-3 left-3 z-[2] font-mono text-[10px] text-t3 ${className}`}
     >
       {[...parts.filter(Boolean), `zoom ${Math.round(zoom * 100)}%`].join(" · ")}
     </span>

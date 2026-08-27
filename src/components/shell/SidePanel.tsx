@@ -49,7 +49,7 @@ export function usePanelAvailable(): boolean {
 
 function Count({ use }: { use: () => string }) {
   const v = use();
-  return <span className="tabular ml-auto font-mono text-[9px] text-t3">{v}</span>;
+  return <span className="tabular ml-auto font-mono text-[10px] text-t3">{v}</span>;
 }
 
 export function SidePanel() {
@@ -64,7 +64,7 @@ export function SidePanel() {
       className="flex h-full w-[206px] flex-none flex-col border-r border-line2 bg-sidebar"
     >
       <div className="flex h-[46px] flex-none items-center border-b border-line2 px-[13px] anim-fade-in">
-        <span className="text-[12.5px] font-bold tracking-[-0.02em]">{def.title}</span>
+        <span className="text-[13.5px] font-bold tracking-[-0.02em]">{def.title}</span>
         {def.useCount && <Count use={def.useCount} />}
       </div>
       <div key={def.id} className="flex min-h-0 flex-1 flex-col stagger-in">
