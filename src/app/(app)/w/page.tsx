@@ -67,7 +67,7 @@ export default function WorkflowPickerPage() {
               <div className="flex flex-col">
                 {suggestions.map((w) => (
                   <Link key={`${w.provider}:${w.refId}`} href={workflowHref({ source: w.provider, refId: w.refId })} className="flex h-8 items-center gap-2 rounded-row px-2 text-[13px] text-t2 transition-colors hover:bg-hover hover:text-t1">
-                    <AppPuck app={w.app || w.provider} size={16} />
+                    <AppPuck app={w.provider} size={16} />
                     <span className="truncate">{w.name}</span>
                   </Link>
                 ))}

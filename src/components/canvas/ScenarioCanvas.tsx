@@ -746,7 +746,7 @@ export default function ScenarioCanvas({
                       aria-hidden="true"
                       title="Changed since you last looked"
                       className="pointer-events-none absolute -inset-[5px] rounded-[12px] border-2"
-                      style={{ borderColor: "var(--warn)", boxShadow: "0 0 9px color-mix(in srgb, var(--warn) 55%, transparent)" }}
+                      style={{ borderColor: "var(--chg)", boxShadow: "0 0 9px color-mix(in srgb, var(--chg) 55%, transparent)" }}
                     />
                   )}
                 </span>

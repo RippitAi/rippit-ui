@@ -52,7 +52,7 @@ const ITEMS: Item[] = [
     hint: "Click the step → Comments in its panel",
   },
   {
-    swatch: <span className="size-3 rounded-[5px] border-2" style={{ borderColor: "var(--warn)", boxShadow: "0 0 6px var(--warn)" }} />,
+    swatch: <span className="size-3 rounded-[5px] border-2" style={{ borderColor: "var(--chg)", boxShadow: "0 0 6px var(--chg)" }} />,
     label: "Changed since you last looked",
     hint: "Rippit snapshot diff at sync — open Changes for details",
   },

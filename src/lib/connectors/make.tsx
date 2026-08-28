@@ -73,11 +73,11 @@ export const makeConnector: ConnectorDescriptor = {
     ];
   },
 
-  async loadWorkflow(id) {
+  async loadWorkflow(id, fresh = false) {
     const scenarioId = parseInt(id);
     const [detail, summary] = await Promise.all([
       fetchScenarioDetail(scenarioId),
-      fetchScenarioSummary(scenarioId),
+      fetchScenarioSummary(scenarioId, fresh),
     ]);
     return {
       summary,

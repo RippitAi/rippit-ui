@@ -71,8 +71,8 @@ export const ghlConnector: ConnectorDescriptor = {
     ];
   },
 
-  async loadWorkflow(id) {
-    const summary = await fetchGhlWorkflowSummary(id);
+  async loadWorkflow(id, fresh = false) {
+    const summary = await fetchGhlWorkflowSummary(id, fresh);
     return {
       summary,
       meta: {

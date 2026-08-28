@@ -59,7 +59,7 @@ function WorkflowRow({ workflow, tags, lastRun, changed, accountName }: { workfl
   return (
     <Link href={workflowHref({ source: workflow.provider, refId: workflow.refId })} className="group flex w-full items-center gap-2.5 border-b border-line2 px-3.5 py-2.5 text-left transition-[background] duration-[var(--dur-fast)] ease-[var(--ease-out)] last:border-b-0 hover:bg-hover">
       <span className="transition-transform duration-[var(--dur-fast)] group-hover:-translate-y-[2px]">
-        <AppPuck app={workflow.app || workflow.provider} size={22} />
+        <AppPuck app={workflow.provider} size={22} />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[12.5px] font-semibold text-t1">{workflow.name}</span>
@@ -79,7 +79,7 @@ function WorkflowRow({ workflow, tags, lastRun, changed, accountName }: { workfl
         </span>
       )}
       {lastRun && (lastRun.status === "error" || lastRun.status === "incomplete") && <LastRunChip status={lastRun.status} at={lastRun.at} />}
-      {changed ? <StatusPill pill={{ label: String(changed), tone: "warn" }} dot={false} /> : null}
+      {changed ? <StatusPill pill={{ label: String(changed), tone: "info" }} dot={false} /> : null}
       <StatusPill pill={{ label: tone, tone: PILL_TONE[tone] }} />
     </Link>
   );

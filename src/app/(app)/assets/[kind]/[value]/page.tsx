@@ -95,7 +95,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ kind: st
                     const href = `${workflowHref({ source: u.provider, refId: u.workflowExternalId })}${u.nodeId ? `?step=${encodeURIComponent(u.nodeId)}` : ""}`;
                     return (
                       <Link key={`${k}:${u.nodeId ?? i}`} href={href} className="flex w-full items-center gap-2.5 border-b border-line2 px-3.5 py-[11px] text-left transition-[background] duration-[var(--dur-fast)] last:border-b-0 hover:bg-hover">
-                        <AppPuck app={u.app || u.provider} size={22} />
+                        <AppPuck app={u.provider} size={22} />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[12.5px] font-semibold text-t1">
                             {u.workflowName || `${connector.shortLabel} ${u.workflowExternalId}`}

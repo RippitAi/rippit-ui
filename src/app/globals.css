@@ -71,6 +71,10 @@
   --err-text: #b91c1c;
   --off-text: #52525b;
 
+  /* "Changed since you last looked" — light blue, distinct from warn */
+  --chg: #0284c7;
+  --chg-text: #075985;
+
   /* Legacy aliases used by existing pages */
   --background: var(--bg);
   --foreground: var(--text);
@@ -135,6 +139,9 @@
   --err-text: #f87171;
   --off-text: #a1a1aa;
 
+  --chg: #38bdf8;
+  --chg-text: #7dd3fc;
+
   --primary-hover: #d4d4d8;
 
   --sidebar: #0c0c0f;
@@ -165,6 +172,8 @@
   --color-warn-text: var(--warn-text);
   --color-err-text: var(--err-text);
   --color-off-text: var(--off-text);
+  --color-chg: var(--chg);
+  --color-chg-text: var(--chg-text);
   --color-line-strong: var(--line-strong);
 
   /* shadcn/ui mapping (monochrome accent rule: primary = text on bg) */

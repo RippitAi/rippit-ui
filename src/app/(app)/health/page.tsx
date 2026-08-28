@@ -162,7 +162,7 @@ export default function HealthPage() {
               <RowCard key={`${r.entry.provider}:${r.entry.refId}`} className="mb-2.5" delay={0.18 + Math.min(ri, 8) * 0.04}>
                 <Link href={href} className="group flex w-full items-center gap-2.5 border-b border-line2 px-3.5 py-2.5 transition-[background] duration-[var(--dur-fast)] hover:bg-hover">
                   <span className="transition-transform duration-[var(--dur-fast)] group-hover:-translate-y-[2px]">
-                    <AppPuck app={r.entry.app || r.entry.provider} size={22} />
+                    <AppPuck app={r.entry.provider} size={22} />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[12.5px] font-semibold text-t1">{r.entry.name}</span>

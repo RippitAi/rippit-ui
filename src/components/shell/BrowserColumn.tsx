@@ -7,10 +7,12 @@ import {
   Bookmark,
   ChevronRight,
   Clock3,
+  GripVertical,
   RefreshCw,
   Search,
   TriangleAlert,
 } from "lucide-react";
+import { Reorder, useDragControls, type DragControls } from "framer-motion";
 import { useConnections, useWorkflowIndex } from "@/components/app/ConnectionsProvider";
 import { getConnector } from "@/lib/connectors";
 import type { NavFolder, NavGroup, NavItem, ProviderId } from "@/lib/connectors/types";
@@ -30,9 +32,21 @@ import { useRecentWorkflows, useStoredJson, writeStored } from "@/lib/stored";
 type Sev = "err" | "warn" | null;
 const OPEN_KEY = "rippit.browser.open";
 const CONN_KEY = "rippit.browser.connOpen";
+const PROVIDER_ORDER_KEY = "rippit.browser.providerOrder";
+const CONN_ORDER_KEY = "rippit.browser.connOrder";
 const HIT_CAP = 30;
 const EMPTY_OPEN: Record<string, string | null> = {};
 const EMPTY_CONN: Record<string, boolean> = {};
+const EMPTY_ORDER: string[] = [];
+const EMPTY_CONN_ORDER: Record<string, string[]> = {};
+
+/** Stable sort by a persisted id order; ids not yet in the order keep their
+ * natural position after the ordered ones. */
+function orderBy<T>(items: T[], order: string[], key: (t: T) => string): T[] {
+  if (order.length === 0) return items;
+  const idx = new Map(order.map((k, i) => [k, i]));
+  return [...items].sort((a, b) => (idx.get(key(a)) ?? order.length) - (idx.get(key(b)) ?? order.length));
+}
 
 const ROW =
   "flex w-full cursor-pointer items-center gap-1.5 rounded-row border-0 bg-transparent px-1.5 text-left transition-[background] duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:bg-hover";
@@ -46,6 +60,24 @@ function SevDot({ sev }: { sev: Sev }) {
       className="size-[5px] flex-none rounded-full"
       style={{ background: c, boxShadow: `0 0 5px ${c}` }}
     />
+  );
+}
+
+/** Light-blue "N unseen changes" count. */
+function ChangeCount({ n }: { n: number | undefined }) {
+  if (!n) return null;
+  return (
+    <span
+      aria-label={`${n} change${n === 1 ? "" : "s"} since you last looked`}
+      title={`${n} change${n === 1 ? "" : "s"} since you last looked`}
+      className="tabular flex-none rounded-full border px-[5px] py-px font-mono text-[9px] leading-[1.4] text-chg-text"
+      style={{
+        background: "color-mix(in srgb, var(--chg) 10%, transparent)",
+        borderColor: "color-mix(in srgb, var(--chg) 35%, transparent)",
+      }}
+    >
+      {n}
+    </span>
   );
 }
 
@@ -72,6 +104,20 @@ export function WorkflowBrowser() {
   const recentAll = useRecentWorkflows();
   const recent = recentAll.slice(0, 5);
 
+  // Persisted ordering: platform sections, and connections within each.
+  const providerOrder = useStoredJson<string[]>(PROVIDER_ORDER_KEY, EMPTY_ORDER);
+  const connOrder = useStoredJson<Record<string, string[]>>(CONN_ORDER_KEY, EMPTY_CONN_ORDER);
+  const sections = useMemo(() => {
+    const byProvider = new Map<string, Connection[]>();
+    for (const c of connections) {
+      byProvider.set(c.provider, [...(byProvider.get(c.provider) ?? []), c]);
+    }
+    return orderBy([...byProvider.keys()], providerOrder, (p) => p).map((provider) => ({
+      provider: provider as ProviderId,
+      connections: orderBy(byProvider.get(provider)!, connOrder[provider] ?? EMPTY_ORDER, (c) => c.id),
+    }));
+  }, [connections, providerOrder, connOrder]);
+
   useEffect(() => {
     let live = true;
     fetchViews().then((d) => live && setViews(d.views)).catch(() => {});
@@ -80,13 +126,22 @@ export function WorkflowBrowser() {
     };
   }, []);
 
-  // Severity per workflow from the link map.
+  // Severity (issues only) and unseen-change counts per workflow, from the
+  // link map. Changes render as a light-blue count, never as a warn dot.
   const sevOf = useMemo(() => {
     const m = new Map<string, Sev>();
     for (const w of linkMap?.workflows ?? []) {
       const ic = w.issueCounts;
-      const sev: Sev = ic && ic.error > 0 ? "err" : (ic && ic.warn > 0) || (w.changedSince?.count ?? 0) > 0 ? "warn" : null;
+      const sev: Sev = ic && ic.error > 0 ? "err" : ic && ic.warn > 0 ? "warn" : null;
       if (sev) m.set(`${w.source}:${w.refId}`, sev);
+    }
+    return m;
+  }, [linkMap]);
+  const changedOf = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const w of linkMap?.workflows ?? []) {
+      const n = w.changedSince?.count ?? 0;
+      if (n > 0) m.set(`${w.source}:${w.refId}`, n);
     }
     return m;
   }, [linkMap]);
@@ -102,7 +157,7 @@ export function WorkflowBrowser() {
           key: `${w.provider}:${w.refId}`,
           href: workflowHref({ source: w.provider, refId: w.refId }),
           name: w.name,
-          app: w.app || w.provider,
+          app: w.provider,
           path: path || getConnector(w.provider).shortLabel,
           sev: sevOf.get(`${w.provider}:${w.refId}`) ?? null,
         });
@@ -162,22 +217,45 @@ export function WorkflowBrowser() {
                 })}
               </section>
             )}
-            {connections.map((conn) => (
-              <ConnectionTree
-                key={conn.id}
-                connection={conn}
-                groups={trees[conn.id] ?? []}
-                status={treeStatus[conn.id] ?? "loading"}
-                syncing={syncing === conn.id}
-                onSync={() => sync(conn)}
-                openFolder={open[conn.id] ?? null}
-                onToggleFolder={(fid) => toggleFolder(conn.id, fid)}
-                expanded={connOpen[conn.id] ?? true}
-                onToggle={() => toggleConn(conn.id)}
-                sevOf={sevOf}
-                pathname={pathname}
-              />
-            ))}
+            <Reorder.Group
+              as="div"
+              axis="y"
+              values={sections.map((s) => s.provider)}
+              onReorder={(next: string[]) => writeStored(PROVIDER_ORDER_KEY, next)}
+            >
+              {sections.map((s) => (
+                <ProviderSection key={s.provider} provider={s.provider} count={s.connections.length}>
+                  <Reorder.Group
+                    as="div"
+                    axis="y"
+                    values={s.connections.map((c) => c.id)}
+                    onReorder={(next: string[]) => writeStored(CONN_ORDER_KEY, { ...connOrder, [s.provider]: next })}
+                  >
+                    {s.connections.map((conn) => (
+                      <ConnectionItem key={conn.id} id={conn.id}>
+                        {(dragControls) => (
+                          <ConnectionTree
+                            connection={conn}
+                            groups={trees[conn.id] ?? []}
+                            status={treeStatus[conn.id] ?? "loading"}
+                            syncing={syncing === conn.id}
+                            onSync={() => sync(conn)}
+                            openFolder={open[conn.id] ?? null}
+                            onToggleFolder={(fid) => toggleFolder(conn.id, fid)}
+                            expanded={connOpen[conn.id] ?? true}
+                            onToggle={() => toggleConn(conn.id)}
+                            sevOf={sevOf}
+                            changedOf={changedOf}
+                            pathname={pathname}
+                            dragControls={dragControls}
+                          />
+                        )}
+                      </ConnectionItem>
+                    ))}
+                  </Reorder.Group>
+                </ProviderSection>
+              ))}
+            </Reorder.Group>
             {!loading && connections.length === 0 && (
               <div className="px-1.5 py-2 text-[11.5px] text-t3">
                 Nothing connected yet.{" "}
@@ -222,6 +300,58 @@ export function useWorkflowCount(): string {
   return loading ? "…" : `${index.length}`;
 }
 
+/** Small grab handle — shown on hover, drives a framer-motion drag control. */
+function Grip({ controls, label }: { controls: DragControls; label: string }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title="Drag to reorder"
+      onPointerDown={(e) => {
+        e.preventDefault();
+        controls.start(e);
+      }}
+      className="flex flex-none cursor-grab touch-none items-center border-0 bg-transparent p-0 text-t3 opacity-0 transition-opacity duration-[var(--dur-fast)] focus-visible:opacity-100 group-hover/reorder:opacity-100 active:cursor-grabbing"
+    >
+      <GripVertical aria-hidden="true" className="size-[11px]" />
+    </button>
+  );
+}
+
+/** One platform (GHL / Make) section: labeled header, draggable as a whole. */
+function ProviderSection({ provider, count, children }: { provider: ProviderId; count: number; children: React.ReactNode }) {
+  const controls = useDragControls();
+  const connector = getConnector(provider);
+  return (
+    <Reorder.Item
+      as="div"
+      value={provider}
+      dragListener={false}
+      dragControls={controls}
+      layout
+      className="group/reorder relative mb-2.5 rounded-row bg-sidebar"
+    >
+      <div className="flex h-[24px] items-center gap-[6px] border-b border-line2 px-1.5">
+        <AppPuck app={connector.id} color={connector.brandColor} glyph={connector.glyph} size={14} />
+        <span className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wide text-t3">{connector.label}</span>
+        <span className="tabular font-mono text-[10px] text-t3">{count}</span>
+        <Grip controls={controls} label={`Drag to reorder the ${connector.label} section`} />
+      </div>
+      <div className="pt-1">{children}</div>
+    </Reorder.Item>
+  );
+}
+
+/** One connection inside a section — draggable by the grip in its header. */
+function ConnectionItem({ id, children }: { id: string; children: (controls: DragControls) => React.ReactNode }) {
+  const controls = useDragControls();
+  return (
+    <Reorder.Item as="div" value={id} dragListener={false} dragControls={controls} layout className="relative rounded-row bg-sidebar">
+      {children(controls)}
+    </Reorder.Item>
+  );
+}
+
 function ConnectionTree({
   connection,
   groups,
@@ -233,7 +363,9 @@ function ConnectionTree({
   expanded,
   onToggle,
   sevOf,
+  changedOf,
   pathname,
+  dragControls,
 }: {
   connection: Connection;
   groups: NavGroup[];
@@ -245,7 +377,9 @@ function ConnectionTree({
   expanded: boolean;
   onToggle: () => void;
   sevOf: Map<string, Sev>;
+  changedOf: Map<string, number>;
   pathname: string;
+  dragControls?: DragControls;
 }) {
   const connector = getConnector(connection.provider);
   const needsReauth = connection.status === "needs_reauth";
@@ -255,7 +389,7 @@ function ConnectionTree({
   );
   return (
     <div className="mb-1.5">
-      <div className="flex h-[27px] items-center gap-[6px] rounded-row px-1.5 transition-[background] duration-[var(--dur-fast)] hover:bg-hover">
+      <div className="group/reorder flex h-[27px] items-center gap-[6px] rounded-row px-1.5 transition-[background] duration-[var(--dur-fast)] hover:bg-hover">
         <button
           type="button"
           onClick={onToggle}
@@ -290,6 +424,7 @@ function ConnectionTree({
             <span aria-hidden="true" className="tabular font-mono text-[9px]">{syncing ? "syncing" : total}</span>
           </button>
         )}
+        {dragControls && <Grip controls={dragControls} label={`Drag to reorder ${connection.displayName}`} />}
       </div>
       {!expanded ? null : (
       <div className="ml-[6px]">
@@ -326,11 +461,12 @@ function ConnectionTree({
               open={openFolder === f.id}
               onToggle={() => onToggleFolder(f.id)}
               sevOf={sevOf}
+              changedOf={changedOf}
               pathname={pathname}
             />
           ))}
           {g.items.map((it) => (
-            <WorkflowRow key={it.refId} item={it} provider={connection.provider} sevOf={sevOf} pathname={pathname} indent={false} />
+            <WorkflowRow key={it.refId} item={it} provider={connection.provider} sevOf={sevOf} changedOf={changedOf} pathname={pathname} indent={false} />
           ))}
         </div>
       ))}
@@ -346,6 +482,7 @@ function FolderRows({
   open,
   onToggle,
   sevOf,
+  changedOf,
   pathname,
 }: {
   folder: NavFolder;
@@ -353,6 +490,7 @@ function FolderRows({
   open: boolean;
   onToggle: () => void;
   sevOf: Map<string, Sev>;
+  changedOf: Map<string, number>;
   pathname: string;
 }) {
   const sev: Sev = folder.items.some((i) => sevOf.get(`${provider}:${i.refId}`) === "err")
@@ -379,7 +517,7 @@ function FolderRows({
       {open && (
         <div className="my-px mb-[3px]">
           {folder.items.map((it) => (
-            <WorkflowRow key={it.refId} item={it} provider={provider} sevOf={sevOf} pathname={pathname} indent />
+            <WorkflowRow key={it.refId} item={it} provider={provider} sevOf={sevOf} changedOf={changedOf} pathname={pathname} indent />
           ))}
         </div>
       )}
@@ -391,12 +529,14 @@ function WorkflowRow({
   item,
   provider,
   sevOf,
+  changedOf,
   pathname,
   indent,
 }: {
   item: NavItem;
   provider: ProviderId;
   sevOf: Map<string, Sev>;
+  changedOf: Map<string, number>;
   pathname: string;
   indent: boolean;
 }) {
@@ -411,6 +551,7 @@ function WorkflowRow({
     >
       <StatusDot item={item} />
       <span className={`min-w-0 flex-1 truncate text-[11px] ${active ? "font-medium text-t1" : "text-t2"}`}>{item.name}</span>
+      <ChangeCount n={changedOf.get(`${provider}:${item.refId}`)} />
       <SevDot sev={sevOf.get(`${provider}:${item.refId}`) ?? null} />
     </Link>
   );

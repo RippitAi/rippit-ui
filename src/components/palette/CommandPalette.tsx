@@ -267,7 +267,7 @@ export function CommandPalette() {
             <CommandGroup key={conn.id} heading={`${connector.shortLabel} · ${conn.displayName}`}>
               {entries.map((e) => (
                 <CommandItem key={`${e.provider}:${e.refId}`} value={`${e.name} ${e.groupPath.join(" ")} ${connector.label}`} className={ITEM} onSelect={() => go(workflowHref({ source: e.provider, refId: e.refId }))}>
-                  <AppPuck app={e.app || e.provider} size={20} />
+                  <AppPuck app={e.provider} size={20} />
                   <span className="truncate">{e.name}</span>
                   {e.groupPath.length > 0 && <span className="truncate text-[11.5px] text-t3">{e.groupPath.join(" / ")}</span>}
                   <CommandShortcut className="font-mono text-[9.5px]">{connector.shortLabel}</CommandShortcut>

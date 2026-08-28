@@ -687,9 +687,10 @@ export async function fetchScenarioDetail(
 }
 
 export function fetchScenarioSummary(
-  scenarioId: number
+  scenarioId: number,
+  fresh = false
 ): Promise<ScenarioSummary> {
-  return apiFetch(`/workflows/make/${scenarioId}/summary`);
+  return apiFetch(`/workflows/make/${scenarioId}/summary${fresh ? "?fresh=true" : ""}`);
 }
 
 export function fetchModuleDetail(
@@ -708,9 +709,10 @@ export interface GhlWorkflowSummary extends ScenarioSummary {
 }
 
 export function fetchGhlWorkflowSummary(
-  workflowId: string
+  workflowId: string,
+  fresh = false
 ): Promise<GhlWorkflowSummary> {
-  return apiFetch(`/workflows/ghl/${workflowId}/summary`);
+  return apiFetch(`/workflows/ghl/${workflowId}/summary${fresh ? "?fresh=true" : ""}`);
 }
 
 export function fetchGhlStepDetail(

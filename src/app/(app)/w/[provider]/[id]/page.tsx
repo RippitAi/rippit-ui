@@ -296,6 +296,30 @@ export default function WorkflowPage({ params }: { params: Promise<{ provider: s
     )
   );
 
+  const [refreshing, setRefreshing] = useState(false);
+  const [changesReload, setChangesReload] = useState(0);
+
+  // Manual sync: live-fetch through the connector (also refreshes the stored
+  // copy server-side), then re-pull runs + changes so everything reflects it.
+  const refresh = useCallback(() => {
+    setRefreshing(true);
+    Promise.all([
+      connector.loadWorkflow(id, true).then(setData),
+      provider === "make" ? fetchExecutions(provider, id).then(setRuns).catch(() => {}) : Promise.resolve(),
+    ])
+      .catch(() => {})
+      .finally(() => {
+        fetchWorkflowChanges(provider, id)
+          .then((d) => {
+            const lastSeen = d.lastSeenAt;
+            setChanges({ ...d, changes: d.changes.map((c) => ({ ...c, unseen: !lastSeen || c.detectedAt > lastSeen })) });
+          })
+          .catch(() => {});
+        setChangesReload((g) => g + 1);
+        setRefreshing(false);
+      });
+  }, [connector, id, provider]);
+
   const toggleWatch = useCallback(() => {
     const next = !wfMeta?.watching;
     setWatch(`wf:${provider}:${id}`, next)
@@ -344,7 +368,7 @@ export default function WorkflowPage({ params }: { params: Promise<{ provider: s
   return (
     <div className="flex h-full min-w-0 flex-col">
       <ActionBar
-        app={indexEntry?.app || (summary.appsUsed.find((a) => a !== provider) ?? provider)}
+        app={provider}
         name={summary.name}
         statusPill={meta.statusPill}
         live={live}
@@ -354,6 +378,8 @@ export default function WorkflowPage({ params }: { params: Promise<{ provider: s
         onOwner={() => openTool("info")}
         watching={!!wfMeta?.watching}
         onToggleWatch={toggleWatch}
+        onRefresh={refresh}
+        refreshing={refreshing}
         meta={metaLine || null}
         tools={[
           {
@@ -363,7 +389,7 @@ export default function WorkflowPage({ params }: { params: Promise<{ provider: s
             tone: issueCounts.error > 0 || lastRunStatus === "error" || lastRunStatus === "incomplete" ? "err" : "warn",
           },
           { id: "info", label: "Info — owner, tags, stats", badge: wfTags && wfTags.length > 0 ? wfTags.length : null, tone: "t1" },
-          { id: "changes", label: "Changes", badge: changes && changes.unseen > 0 ? changes.unseen : null, tone: "warn" },
+          { id: "changes", label: "Changes", badge: changes && changes.unseen > 0 ? changes.unseen : null, tone: "info" },
           { id: "comments", label: "Comments", badge: wfOpenComments > 0 ? wfOpenComments : null, tone: "t1" },
           { id: "runs", label: "Runs", hidden: provider !== "make", badge: lastRunStatus === "error" || lastRunStatus === "incomplete" ? "!" : null, tone: "err" },
           { id: "notes", label: "Notes", dot: !!wfMeta?.notes, tone: "ok" },
@@ -480,10 +506,11 @@ export default function WorkflowPage({ params }: { params: Promise<{ provider: s
             </DockHost>
           )}
           {tool === "changes" && (
-            <DockHost label="Changes" dockKey="changes" onClose={closeTool} header={<DockTitle icon={<History className="size-3.5" />} title="Changes" subtitle={changes?.versions?.length ? `rev ${changes.versions[0].version} · snapshot diff at sync` : "snapshot diff at sync"} />}>
+            <DockHost label="Changes" dockKey="changes" onClose={closeTool} header={<DockTitle icon={<History className="size-3.5" />} title="Changes" subtitle={<span title="Snapshot diff at every sync, detected by Rippit — who/when comes from the platform's edit log where available.">{changes?.versions?.length ? `rev ${changes.versions[0].version}` : "snapshot diff"}</span>} />}>
               <ChangesBody
                 provider={provider}
                 externalId={id}
+                reloadToken={changesReload}
                 onSelectNode={(n) => {
                   const match = summary.modules.find((m) => String(m.id) === String(n));
                   if (match) selectNode(match.id);

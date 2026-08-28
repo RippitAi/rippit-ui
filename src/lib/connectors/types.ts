@@ -116,7 +116,7 @@ export interface ConnectorDescriptor {
   fetchTree(conn: ConnectionRef): Promise<NavGroup[]>;
 
   /** Load everything the workflow page needs (canvas summary + header meta). */
-  loadWorkflow(id: string): Promise<WorkflowData>;
+  loadWorkflow(id: string, fresh?: boolean): Promise<WorkflowData>;
   fetchNodeDetail(workflowId: string, nodeId: NodeId): Promise<unknown>;
   /** Provider-specific "raw config" sections for a node detail payload. */
   DetailSections: ComponentType<DetailSectionsProps>;

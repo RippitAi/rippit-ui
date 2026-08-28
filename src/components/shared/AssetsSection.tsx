@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, Link2 } from "lucide-react";
+import { ArrowUpRight, Link2, Network } from "lucide-react";
 import type { AssetRef } from "@/app/lib/api";
 import { Section } from "@/components/shared/DetailPanelKit";
 
@@ -57,15 +57,43 @@ export function AssetsSection({
       <ul className="flex flex-col">
         {assets.map((a) => {
           const name = a.label || kindLabel(a.kind);
+          // Primary action = open the asset itself on its platform, new tab.
+          // No native URL (hashed webhooks/endpoints) → fall through to the
+          // asset page so the name is never a dead end.
           const nameEl = a.dynamic ? (
             <span className="truncate text-[12.5px] text-t1">{name}</span>
-          ) : onFindUses ? (
-            <button type="button" onClick={() => onFindUses({ kind: a.kind, value: a.value, label: a.label })} className="truncate text-left text-[12.5px] text-t1 hover:underline" title="All uses across workflows">
+          ) : a.url ? (
+            <a
+              href={a.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Open the asset on its platform in a new tab"
+              className="inline-flex min-w-0 items-center gap-1 text-[12.5px] text-t1 hover:underline"
+            >
+              <span className="truncate">{name}</span>
+              <ArrowUpRight aria-hidden="true" className="size-[10px] flex-none text-t3" />
+            </a>
+          ) : (
+            <Link href={assetHref(a.kind, a.value)} className="truncate text-[12.5px] text-t1 hover:underline" title="No native link for this kind — opens the asset page">
               {name}
+            </Link>
+          );
+          const usesEl = onFindUses ? (
+            <button
+              type="button"
+              onClick={() => onFindUses({ kind: a.kind, value: a.value, label: a.label })}
+              title="Dependencies — every workflow and step using this asset"
+              className="inline-flex flex-none cursor-pointer items-center gap-[3px] text-[11px] text-t2 transition-colors hover:text-t1"
+            >
+              <Network aria-hidden="true" className="size-[10px]" /> uses
             </button>
           ) : (
-            <Link href={assetHref(a.kind, a.value)} className="truncate text-[12.5px] text-t1 hover:underline" title="All uses across workflows">
-              {name}
+            <Link
+              href={assetHref(a.kind, a.value)}
+              title="Dependencies — every workflow and step using this asset"
+              className="inline-flex flex-none items-center gap-[3px] text-[11px] text-t2 transition-colors hover:text-t1"
+            >
+              <Network aria-hidden="true" className="size-[10px]" /> uses
             </Link>
           );
           return (
@@ -78,22 +106,7 @@ export function AssetsSection({
                   {a.dynamic ? " · mapped at runtime" : ""}
                 </span>
               </div>
-              {a.url ? (
-                <a
-                  href={a.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={`Open ${name} in its native app`}
-                  title="Open the asset itself in a new tab"
-                  className="inline-flex flex-none items-center gap-[3px] text-[11px] text-t2 transition-colors hover:text-t1"
-                >
-                  open <ArrowUpRight aria-hidden="true" className="size-[9px]" />
-                </a>
-              ) : (
-                <span className="flex-none text-[10.5px] text-t3" title="No native link for this asset kind (webhooks and endpoints are stored hashed)">
-                  —
-                </span>
-              )}
+              {!a.dynamic && usesEl}
             </li>
           );
         })}

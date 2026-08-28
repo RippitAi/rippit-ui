@@ -54,12 +54,12 @@ export function CornerBadge({
   dot = false,
 }: {
   value?: number | string | null;
-  tone?: "t1" | "warn" | "err" | "ok";
+  tone?: "t1" | "warn" | "err" | "ok" | "info";
   dot?: boolean;
 }) {
   if (!dot && (value === null || value === undefined || value === 0 || value === "")) return null;
   const bg =
-    tone === "warn" ? "var(--warn)" : tone === "err" ? "var(--err)" : tone === "ok" ? "var(--ok)" : "var(--t1)";
+    tone === "warn" ? "var(--warn)" : tone === "err" ? "var(--err)" : tone === "ok" ? "var(--ok)" : tone === "info" ? "var(--chg)" : "var(--t1)";
   const fg = tone === "t1" ? "var(--bg)" : "#000";
   if (dot) {
     return (

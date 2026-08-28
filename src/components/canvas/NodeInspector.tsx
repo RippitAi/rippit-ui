@@ -176,7 +176,10 @@ export function NodeInspector({
             <>
               <Section title="What it does">
                 <p className="m-0 text-[12.5px] leading-[1.6] text-t1">
-                  {desc?.summary || module.summary || `${appName(app)} ${connector.nouns.step}.`}
+                  {(() => {
+                    const s = desc?.summary || module.summary || `${appName(app)} ${connector.nouns.step}`;
+                    return /[.!?]$/.test(s) ? s : `${s}.`;
+                  })()}
                   {desc?.filterName || module.filterName ? ` Only continues when ${desc?.filterName || module.filterName}.` : module.hasFilter ? " Has a filter." : ""}
                   {desc?.waitText || module.waitFor?.text ? ` Waits ${desc?.waitText || module.waitFor?.text}.` : ""}
                 </p>
@@ -185,10 +188,10 @@ export function NodeInspector({
                 )}
               </Section>
               <IssuesSection issues={issues} onFindUses={(ref) => router.push(assetHref(ref.kind, ref.value))} />
-              <Section title={provider === "make" ? "Runs" : "Runtime"}>
-                {provider !== "make" ? (
-                  <p className="text-[12px] text-t3">Runtime not available for this platform yet.</p>
-                ) : !executions ? (
+              {/* Runtime exists for Make only — no empty placeholder section elsewhere. */}
+              {provider === "make" && (
+              <Section title="Runs">
+                {!executions ? (
                   <p className="text-[12px] text-t3">Loading runs…</p>
                 ) : !executions.supported ? (
                   <p className="text-[12px] text-t3">{executions.reason ?? "Runtime status not available."}</p>
@@ -211,6 +214,7 @@ export function NodeInspector({
                   </div>
                 )}
               </Section>
+              )}
               <AssetsSection assets={desc?.assets} />
               <Section title="Raw config">
                 {detail ? <Sections data={detail} /> : <JsonBlock data={null} />}

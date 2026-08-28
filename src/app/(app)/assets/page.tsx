@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Search } from "lucide-react";
+import { ArrowUpRight, ChevronRight, Search } from "lucide-react";
 import { AssetIndexEntry, fetchAssets } from "@/app/lib/api";
 import { useConnections } from "@/components/app/ConnectionsProvider";
 import { kindLabel, assetHref } from "@/components/shared/AssetsSection";
@@ -92,19 +92,35 @@ export default function AssetsPage() {
             {rows.length === 0 && <EmptyRow>{data && data.total === 0 ? "No assets indexed yet — sync a connection first." : "Nothing matches."}</EmptyRow>}
             {rows.map((a) => {
               return (
-                <Link key={`${a.kind}:${a.value}`} href={assetHref(a.kind, a.value)} className="flex w-full items-center gap-[11px] border-b border-line2 px-3.5 py-[11px] text-left transition-[background] duration-[var(--dur-fast)] last:border-b-0 hover:bg-hover">
-                  <span className="inline-flex size-7 flex-none items-center justify-center rounded-control border border-line bg-hover text-t2">
-                    <KindIcon kind={a.kind} className="size-[13px]" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-semibold text-t1">{a.label || kindLabel(a.kind)}</span>
-                    <span className="tabular mt-[1px] block font-mono text-[9.5px] text-t3">
-                      {kindLabel(a.kind).toLowerCase()} · used by {a.workflows} workflow{a.workflows === 1 ? "" : "s"} · {a.uses} step{a.uses === 1 ? "" : "s"}
-                      {a.providers.length > 0 ? ` · ${a.providers.map((p) => CONNECTORS[p]?.shortLabel ?? p).join(" + ")}` : ""}
+                <div key={`${a.kind}:${a.value}`} className="flex w-full items-center gap-[11px] border-b border-line2 px-3.5 py-[11px] transition-[background] duration-[var(--dur-fast)] last:border-b-0 hover:bg-hover">
+                  <Link href={assetHref(a.kind, a.value)} title="Dependencies — every workflow and step using this asset" className="flex min-w-0 flex-1 items-center gap-[11px]">
+                    <span className="inline-flex size-7 flex-none items-center justify-center rounded-control border border-line bg-hover text-t2">
+                      <KindIcon kind={a.kind} className="size-[13px]" />
                     </span>
-                  </span>
-                  <ChevronRight aria-hidden="true" className="size-3 text-t3" />
-                </Link>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-semibold text-t1">{a.label || kindLabel(a.kind)}</span>
+                      <span className="tabular mt-[1px] block font-mono text-[9.5px] text-t3">
+                        {kindLabel(a.kind).toLowerCase()} · used by {a.workflows} workflow{a.workflows === 1 ? "" : "s"} · {a.uses} step{a.uses === 1 ? "" : "s"}
+                        {a.providers.length > 0 ? ` · ${a.providers.map((p) => CONNECTORS[p]?.shortLabel ?? p).join(" + ")}` : ""}
+                      </span>
+                    </span>
+                  </Link>
+                  {a.url && (
+                    <a
+                      href={a.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Open ${a.label || kindLabel(a.kind)} on its platform`}
+                      title="Open the asset on its platform in a new tab"
+                      className="inline-flex flex-none items-center gap-[3px] text-[11.5px] font-semibold text-t2 transition-colors hover:text-t1"
+                    >
+                      open <ArrowUpRight aria-hidden="true" className="size-[10px]" />
+                    </a>
+                  )}
+                  <Link href={assetHref(a.kind, a.value)} aria-label="View dependencies" className="flex-none">
+                    <ChevronRight aria-hidden="true" className="size-3 text-t3" />
+                  </Link>
+                </div>
               );
             })}
           </RowCard>

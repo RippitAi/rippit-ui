@@ -13,6 +13,7 @@ import {
   MessageSquare,
   Network,
   NotebookPen,
+  RefreshCw,
   PanelLeftClose,
   PanelLeftOpen,
   type LucideIcon,
@@ -36,7 +37,7 @@ export interface ToolSpec {
   label: string;
   badge?: number | string | null;
   dot?: boolean;
-  tone?: "t1" | "warn" | "err" | "ok";
+  tone?: "t1" | "warn" | "err" | "ok" | "info";
   hidden?: boolean;
 }
 
@@ -60,6 +61,8 @@ export function ActionBar({
   onOwner,
   watching,
   onToggleWatch,
+  onRefresh,
+  refreshing = false,
   meta,
   tools,
   activeTool,
@@ -79,6 +82,9 @@ export function ActionBar({
   onOwner?: () => void;
   watching: boolean;
   onToggleWatch: () => void;
+  /** Manual sync: live-fetch this workflow from its platform right now. */
+  onRefresh?: () => void;
+  refreshing?: boolean;
   /** e.g. "synced 4 min ago · last run 18 s ago · ok" */
   meta: string | null;
   tools: ToolSpec[];
@@ -127,7 +133,7 @@ export function ActionBar({
       <StatusPill pill={statusPill} pulse={live} />
       {changes > 0 && (
         <button type="button" onClick={() => onTool("changes")} className="cursor-pointer" aria-label={`${changes} changes since you last looked — open Changes`}>
-          <StatusPill pill={{ label: `${changes} change${changes > 1 ? "s" : ""}`, tone: "warn" }} dot={false} />
+          <StatusPill pill={{ label: `${changes} change${changes > 1 ? "s" : ""}`, tone: "info" }} dot={false} />
         </button>
       )}
       {!narrow && (
@@ -148,6 +154,18 @@ export function ActionBar({
         active={watching}
         onClick={onToggleWatch}
       />
+      {onRefresh && (
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={refreshing}
+          aria-label={refreshing ? "Syncing…" : `Sync now — pull the latest from ${providerLabel}`}
+          title={refreshing ? "Syncing…" : `Sync now — pull the latest from ${providerLabel}`}
+          className="inline-flex size-[26px] flex-none cursor-pointer items-center justify-center rounded-control border border-line text-t3 transition-colors duration-[var(--dur-fast)] hover:border-line-strong hover:text-t1 disabled:cursor-default"
+        >
+          <RefreshCw aria-hidden="true" className={`size-[13px] ${refreshing ? "spin motion-reduce:animate-none" : ""}`} />
+        </button>
+      )}
       {!narrow && meta && (
         <span className="tabular whitespace-nowrap font-mono text-[10px] text-t3" title={accountTitle}>
           {meta}

@@ -5,6 +5,8 @@ const TONE = {
   warn: { text: "text-warn-text", varName: "--warn" },
   muted: { text: "text-off-text", varName: "--off" },
   err: { text: "text-err-text", varName: "--err" },
+  /* light blue — "changed since you last looked" */
+  info: { text: "text-chg-text", varName: "--chg" },
 } as const;
 
 /**

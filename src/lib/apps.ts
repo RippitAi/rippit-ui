@@ -47,6 +47,10 @@ export function onColorGradient(col: string): string {
 }
 
 export function appGlyph(app: string): string {
+  // Platform identity matches the connector glyphs ("M", "GH").
+  if (/^make$/i.test(app)) return "M";
+  // Make's "gateway" package is its webhook modules — "GA" reads as noise.
+  if (/^gateway$/i.test(app)) return "WH";
   const words = app.split(/[^a-zA-Z0-9]+/).filter(Boolean);
   if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
   return (words[0] || "?").slice(0, 2).toUpperCase();
@@ -61,6 +65,7 @@ export function appName(app: string): string {
     api: "API",
     ai: "AI",
     ghl: "GHL",
+    gateway: "Webhooks",
   };
   return app
     .split(/[^a-zA-Z0-9]+/)
