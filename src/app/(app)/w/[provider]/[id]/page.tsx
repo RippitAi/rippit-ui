@@ -15,6 +15,7 @@ import { usePaletteScope } from "@/components/palette/palette-context";
 import ScenarioCanvas from "@/components/canvas/ScenarioCanvas";
 import { ActionBar, type DockTool } from "@/components/canvas/ActionBar";
 import { ConnectedChips } from "@/components/canvas/ConnectedChips";
+import { CaptureNotice } from "@/components/shared/CaptureBadge";
 import { DockHost, DockTitle } from "@/components/canvas/DockHost";
 import { NodeInspector } from "@/components/canvas/NodeInspector";
 import { HealthBody } from "@/components/canvas/HealthBody";
@@ -182,6 +183,11 @@ export default function WorkflowPage({ params }: { params: Promise<{ provider: s
   // Everything the Health dock lists: structural issues from the sync plus
   // the failing-module issue from the latest run, worst handled by the dock.
   const healthIssues = useMemo(() => [...runtimeIssueByNode.values(), ...(data?.summary.issues ?? [])], [data, runtimeIssueByNode]);
+
+  const capture = useMemo(
+    () => linkMap?.workflows.find((w) => w.source === self.source && String(w.refId) === String(self.refId))?.capture,
+    [linkMap, self]
+  );
 
   const canvasData = useMemo(() => {
     if (!data) return null;
@@ -408,6 +414,14 @@ export default function WorkflowPage({ params }: { params: Promise<{ provider: s
           <Link href="/settings/connections" className="font-semibold underline-offset-2 hover:underline">
             Reconnect →
           </Link>
+        </div>
+      )}
+
+      {/* States plainly when what is on screen is not what is in the platform:
+          the canvas below is only as trustworthy as the last capture. */}
+      {capture && (
+        <div className="px-3 pb-2">
+          <CaptureNotice capture={capture} />
         </div>
       )}
 

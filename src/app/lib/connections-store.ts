@@ -20,6 +20,11 @@ export interface Connection {
   lastSyncedAt: string | null;
   /** "extension" | "oauth" | "api_token" — how this connection authenticates. */
   authType?: string;
+  /** Last attempt, and how it went. `lastSyncedAt` only moves on success, so
+   *  a connection failing every sync shows an attempt but no fresh sync. */
+  lastSyncAttemptAt?: string | null;
+  lastSyncOutcome?: "ok" | "partial" | "failed" | null;
+  connectedBy?: { userId: string | null; name: string | null; unclaimed: boolean };
 }
 
 function fromBackend(c: BackendConnectionRow): Connection {
@@ -33,6 +38,9 @@ function fromBackend(c: BackendConnectionRow): Connection {
     status: (c.status as Connection["status"]) || "active",
     lastSyncedAt: c.last_synced_at,
     authType: c.auth_type,
+    lastSyncAttemptAt: c.last_sync_attempt_at ?? null,
+    lastSyncOutcome: c.last_sync_outcome ?? null,
+    connectedBy: c.connectedBy,
   };
 }
 

@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo } from "react";
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, CircleAlert, HeartPulse, TriangleAlert, Unplug, type LucideIcon } from "lucide-react";
+import { ArrowRight, CheckCircle2, CircleAlert, CircleSlash, HeartPulse, TriangleAlert, Unplug, type LucideIcon } from "lucide-react";
 import { useConnections, useWorkflowIndex, type WorkflowIndexEntry } from "@/components/app/ConnectionsProvider";
 import { getConnector } from "@/lib/connectors";
 import type { Issue, LastRun } from "@/app/lib/api";
 import { LastRunChip } from "@/components/shared/RunsPanel";
 import { AppPuck } from "@/components/shared/AppPuck";
+import { CaptureBadge } from "@/components/shared/CaptureBadge";
 import { RowCard, ViewBar, ViewBody, ViewTitle } from "@/components/views/ViewFrame";
 import { workflowHref } from "@/lib/portals";
 import { useCountUp } from "@/lib/useCountUp";
@@ -107,6 +108,17 @@ export default function HealthPage() {
     [rows]
   );
   const healthyCount = rows.length - unhealthy.length;
+
+  // Workflows Rippit could not read. Deliberately kept out of the breakage
+  // counts: a capture failure means the map may be wrong, not that the estate
+  // is broken, and conflating the two is how a monitoring product loses trust.
+  const captureProblems = useMemo(
+    () =>
+      (linkMap?.workflows ?? []).filter(
+        (w) => w.capture && (w.capture.state === "failed" || w.capture.state === "never-captured")
+      ),
+    [linkMap]
+  );
   const totals = useMemo(
     () =>
       unhealthy.reduce(
@@ -130,6 +142,40 @@ export default function HealthPage() {
           <Stat label="Failing runs" value={totals.failing} icon={HeartPulse} delay={0.1} danger />
           <Stat label="Dead links" value={totals.dead} icon={Unplug} delay={0.15} danger />
         </div>
+
+        {!loading && captureProblems.length > 0 && (
+          <RowCard className="mb-2.5">
+            <div className="flex items-start gap-2.5 px-3.5 py-3">
+              <CircleSlash aria-hidden="true" className="mt-0.5 size-4 flex-none text-warn-text" />
+              <div className="min-w-0 flex-1">
+                <p className="text-[12.5px] font-semibold text-t1">
+                  {captureProblems.length} workflow{captureProblems.length === 1 ? "" : "s"} Rippit could not read
+                </p>
+                <p className="mt-0.5 text-[11.5px] text-t3">
+                  This is a gap in what Rippit captured, not a fault in your automations — what is
+                  shown for {captureProblems.length === 1 ? "it" : "them"} may be out of date, and
+                  breakage checks that depend on the full estate are paused.
+                </p>
+                <ul className="mt-2 flex flex-wrap gap-1.5">
+                  {captureProblems.slice(0, 8).map((w) => (
+                    <li key={`${w.source}:${w.refId}`}>
+                      <Link
+                        href={workflowHref({ source: w.source, refId: w.refId })}
+                        className="inline-flex items-center gap-1.5 rounded-control border border-line-strong px-2 py-[3px] text-[11.5px] text-t2 hover:border-t1 hover:text-t1"
+                      >
+                        {w.name}
+                        <CaptureBadge capture={w.capture} compact />
+                      </Link>
+                    </li>
+                  ))}
+                  {captureProblems.length > 8 && (
+                    <li className="self-center text-[11px] text-t3">+{captureProblems.length - 8} more</li>
+                  )}
+                </ul>
+              </div>
+            </div>
+          </RowCard>
+        )}
 
         {loading && (
           <RowCard>

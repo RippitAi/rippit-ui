@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { allConnectors } from "@/lib/connectors";
 import type { ConnectorDescriptor, ProviderId } from "@/lib/connectors/types";
 import type { Connection } from "@/app/lib/connections-store";
+import { ConsentGate, useLegalGates } from "@/components/connect/ConsentGate";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -88,6 +89,7 @@ export function ConnectFlow({
   oauthAvailable?: boolean;
 }) {
   const formId = useId();
+  const gates = useLegalGates();
   const [values, setValues] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -95,23 +97,33 @@ export function ConnectFlow({
   if (connector.connect.type === "extension") {
     return (
       <div className="flex flex-col gap-2.5 text-[13px] text-t2">
-        <ol className="list-decimal space-y-1.5 pl-4">
-          {connector.connect.instructions.map((step, i) => (
-            <li key={i}>{step}</li>
-          ))}
-        </ol>
-        {waiting && (
-          <p role="status" className="flex items-center gap-2 text-t3">
-            <span
-              aria-hidden="true"
-              className="size-3 animate-spin rounded-full border-2 border-t2 border-t-transparent motion-reduce:animate-none"
-            />
-            Waiting for the extension to connect…
-          </p>
-        )}
+        {/* The extension path carries a risk the OAuth path does not, so the
+            two are gated separately — accepting the disclosure is not a
+            precondition for the sanctioned route. */}
+        <ConsentGate
+          slugs={gates?.extension ?? null}
+          intro="Before connecting a location with the extension, read what it does and what that risks."
+        >
+          <ol className="list-decimal space-y-1.5 pl-4">
+            {connector.connect.instructions.map((step, i) => (
+              <li key={i}>{step}</li>
+            ))}
+          </ol>
+          {waiting && (
+            <p role="status" className="mt-2.5 flex items-center gap-2 text-t3">
+              <span
+                aria-hidden="true"
+                className="size-3 animate-spin rounded-full border-2 border-t2 border-t-transparent motion-reduce:animate-none"
+              />
+              Waiting for the extension to connect…
+            </p>
+          )}
+        </ConsentGate>
         {oauthAvailable && (
           <div className="mt-1 border-t border-line2 pt-3">
-            <OAuthButton connector={connector} />
+            <ConsentGate slugs={gates?.connect ?? null}>
+              <OAuthButton connector={connector} />
+            </ConsentGate>
           </div>
         )}
       </div>
@@ -120,7 +132,9 @@ export function ConnectFlow({
 
   if (connector.connect.type === "oauth") {
     return oauthAvailable ? (
-      <OAuthButton connector={connector} />
+      <ConsentGate slugs={gates?.connect ?? null}>
+        <OAuthButton connector={connector} />
+      </ConsentGate>
     ) : (
       <p className="text-[13px] italic text-t3">
         OAuth is not configured on this server yet.
@@ -144,7 +158,8 @@ export function ConnectFlow({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <ConsentGate slugs={gates?.connect ?? null}>
+      <form onSubmit={handleSubmit} className="space-y-4">
       {fields.map((field) => {
         const inputId = `${formId}-${field.name}`;
         const errorId = `${formId}-error`;
@@ -194,7 +209,8 @@ export function ConnectFlow({
         {busy ? "Connecting…" : "Connect"}
         {!busy && <ArrowRight aria-hidden="true" className="size-3.5" />}
       </Button>
-    </form>
+      </form>
+    </ConsentGate>
   );
 }
 
