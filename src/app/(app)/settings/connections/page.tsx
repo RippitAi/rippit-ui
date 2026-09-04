@@ -75,7 +75,15 @@ function ConnectionRow({
           {connector.nouns.container} id {connection.externalId}
           {connection.accountName && connection.label && connection.accountName !== connection.label ? ` · ${connection.accountName}` : ""}
           {connection.authType === "oauth" && " · via OAuth (names & status only)"}
-          {connection.authType === "extension" && " · via extension"}
+          {/* auth_type "extension" means "a browser session token" — both the
+              bookmarklet and the extension produce it, so only config tells us
+              which. Say "browser session" when it does not. */}
+          {connection.authType === "extension" &&
+            (connection.capturedVia === "bookmarklet"
+              ? " · via bookmarklet"
+              : connection.capturedVia === "extension"
+                ? " · via extension"
+                : " · via browser session")}
           {connection.lastSyncedAt &&
             ` · synced ${new Date(connection.lastSyncedAt).toLocaleString()}`}
           {connection.connectedBy?.name && ` · connected by ${connection.connectedBy.name}`}
@@ -186,12 +194,14 @@ function PairingCard() {
     <div className="rounded-card border border-line bg-panel px-4 py-4">
       <div className="mb-1 flex items-center gap-2">
         <KeyRound aria-hidden="true" className="size-3.5 text-t3" />
-        <h3 className="text-[13.5px] font-semibold">Extension pairing</h3>
+        <h3 className="text-[13.5px] font-semibold">Chrome extension</h3>
       </div>
       <p className="mb-3 text-[12.5px] leading-relaxed text-t2">
-        To connect a HighLevel location, generate a code and paste it into the
-        Rippit Chrome extension. Codes are single-use and expire after 10
-        minutes.
+        Only needed if you are on the older Rippit Chrome extension. Connecting
+        HighLevel now uses the bookmarklet under <strong>Add a platform</strong>{" "}
+        — no install, and it works in any browser. If you do have the extension,
+        generate a code and paste it in; codes are single-use and expire after
+        10 minutes.
       </p>
 
       {/* The code is what claims a connection, so this is where consent for the
@@ -597,7 +607,7 @@ export default function ConnectionsPage() {
               id="pairing-heading"
               className="mb-2 text-[12px] font-semibold text-t3"
             >
-              Chrome extension
+              Chrome extension (legacy)
             </h2>
             <PairingCard />
           </section>

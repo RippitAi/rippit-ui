@@ -20,6 +20,9 @@ export interface Connection {
   lastSyncedAt: string | null;
   /** "extension" | "oauth" | "api_token" — how this connection authenticates. */
   authType?: string;
+  /** Which vehicle captured the credential. `authType: "extension"` only says
+   *  it is a browser session — the bookmarklet produces the same auth_type. */
+  capturedVia?: "bookmarklet" | "extension";
   /** Last attempt, and how it went. `lastSyncedAt` only moves on success, so
    *  a connection failing every sync shows an attempt but no fresh sync. */
   lastSyncAttemptAt?: string | null;
@@ -38,6 +41,8 @@ function fromBackend(c: BackendConnectionRow): Connection {
     status: (c.status as Connection["status"]) || "active",
     lastSyncedAt: c.last_synced_at,
     authType: c.auth_type,
+    capturedVia: (c.config as { capturedVia?: "bookmarklet" | "extension" } | undefined)
+      ?.capturedVia,
     lastSyncAttemptAt: c.last_sync_attempt_at ?? null,
     lastSyncOutcome: c.last_sync_outcome ?? null,
     connectedBy: c.connectedBy,

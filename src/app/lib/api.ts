@@ -457,7 +457,7 @@ export function setWorkflowTags(
   });
 }
 
-/** Structural issue from the link map (see implemented/errors.md). */
+/** Structural issue from the link map (see pipeline/errors.md). */
 export interface Issue {
   code: string;
   severity: "error" | "warn" | "info";
@@ -753,6 +753,13 @@ export interface BackendConnectionRow {
   /** Whose credential backs this connection. In a shared workspace a GHL
    *  connection runs on one person's session token. */
   connectedBy?: { userId: string | null; name: string | null; unclaimed: boolean };
+  /** "account" holds one credential spanning several containers the user picks
+   *  from; "location" is a single synced container. */
+  kind?: "account" | "location";
+  /** The account connection this container's credential comes from. */
+  parent_id?: string | null;
+  /** Non-secret connection settings. Carries `capturedVia` and `accountName`. */
+  config?: Record<string, unknown>;
 }
 
 /** GET /connectors — provider catalog incl. alternative connect paths. */
@@ -793,6 +800,56 @@ export function fetchConnectionWorkflows(
   connectionId: string
 ): Promise<ConnectionWorkflowRow[]> {
   return apiFetch(`/connections/${connectionId}/workflows`);
+}
+
+/* ─── Account connections & containers ─────────────────────────────────── */
+
+/**
+ * Connect a whole GoHighLevel account with one captured session token.
+ *
+ * The token is scoped to the GHL *user*, not a sub-account, so this stores it
+ * once and the sub-accounts to read are chosen next — rather than capturing the
+ * same credential once per sub-account.
+ */
+export function connectGhlAccount(
+  refreshToken: string,
+  label?: string | null
+): Promise<BackendConnectionRow & { containerNoun?: string }> {
+  return apiPost(`/connections`, {
+    provider: "ghl",
+    kind: "account",
+    label: label ?? null,
+    credentials: { refreshToken },
+    // auth_type will be "extension" either way — it means "a browser session
+    // token". Record which vehicle actually produced it so the UI can say so.
+    config: { capturedVia: "bookmarklet" },
+  });
+}
+
+export interface ContainerRow {
+  externalId: string;
+  name: string | null;
+  connected: boolean;
+  connectionId?: string | null;
+}
+
+export interface ContainerList {
+  /** False means the provider gives us no way to list — ask the user for ids.
+   *  It does NOT mean the account has none. */
+  canEnumerate: boolean;
+  containerNoun: string;
+  containers: ContainerRow[];
+}
+
+export function fetchContainers(connectionId: string): Promise<ContainerList> {
+  return apiFetch(`/connections/${connectionId}/containers`);
+}
+
+export function connectContainers(
+  connectionId: string,
+  containers: { external_id: string; name?: string | null }[]
+): Promise<{ count: number; syncing: boolean; connected: BackendConnectionRow[] }> {
+  return apiPost(`/connections/${connectionId}/containers`, { containers });
 }
 
 /* ─── Extension pairing ────────────────────────────────────────────────── */

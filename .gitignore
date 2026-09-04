@@ -30,9 +30,12 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files. Per-environment defaults are committed (NEXT_PUBLIC_* is inlined
+# into the client bundle, so none of it is secret); *.local overrides are not.
 .env*
 !.env.example
+!.env.development
+!.env.production
 
 # vercel
 .vercel

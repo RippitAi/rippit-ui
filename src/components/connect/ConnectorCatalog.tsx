@@ -10,6 +10,9 @@ import { allConnectors } from "@/lib/connectors";
 import type { ConnectorDescriptor, ProviderId } from "@/lib/connectors/types";
 import type { Connection } from "@/app/lib/connections-store";
 import { ConsentGate, useLegalGates } from "@/components/connect/ConsentGate";
+import BookmarkletCard from "@/components/connect/BookmarkletCard";
+import { bookmarkletHref } from "@/lib/bookmarklet";
+import { useOrigin } from "@/lib/use-origin";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -90,9 +93,38 @@ export function ConnectFlow({
 }) {
   const formId = useId();
   const gates = useLegalGates();
+  // The bookmarklet needs Rippit's real origin baked into its href.
+  const origin = useOrigin();
   const [values, setValues] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  if (connector.connect.type === "bookmarklet") {
+    return (
+      <div className="flex flex-col gap-3 text-[13px] text-t2">
+        {/* Gated on the same disclosure as the extension: the capture vehicle
+            changed, what the user is consenting to did not. */}
+        <ConsentGate
+          slugs={gates?.extension ?? null}
+          intro="Before connecting GoHighLevel, read what this does and what it risks."
+        >
+          <ol className="list-decimal space-y-1.5 pl-4">
+            {connector.connect.instructions.map((step, i) => (
+              <li key={i}>{step}</li>
+            ))}
+          </ol>
+          <BookmarkletCard href={bookmarkletHref(origin)} />
+        </ConsentGate>
+        {oauthAvailable && (
+          <div className="mt-1 border-t border-line2 pt-3">
+            <ConsentGate slugs={gates?.connect ?? null}>
+              <OAuthButton connector={connector} />
+            </ConsentGate>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (connector.connect.type === "extension") {
     return (

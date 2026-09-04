@@ -29,6 +29,9 @@ export interface ConnectField {
 export type ConnectMethod =
   | { type: "form"; fields: ConnectField[]; helpText?: string }
   | { type: "extension"; instructions: string[] }
+  /** Drag a button to the bookmarks bar, click it on a logged-in provider tab.
+   *  No install, no store review, and it works in any browser. */
+  | { type: "bookmarklet"; instructions: string[] }
   | { type: "oauth" };
 
 export interface StatusPillInfo {
