@@ -10,6 +10,18 @@ import {
   useState,
 } from "react";
 import { fetchLinks, LinkMap } from "@/app/lib/api";
+
+const EMPTY_SYNCING: ReadonlySet<string> = new Set();
+
+/**
+ * Whose credential a connection runs on: its account parent if it has one,
+ * else itself. Sub-accounts under one GoHighLevel account share a session
+ * token, so they are one caller to the provider however many rows they are
+ * to us — and syncs on the same owner must not overlap.
+ */
+function credentialOwner(conn: Connection): string {
+  return conn.parentId || conn.id;
+}
 import {
   addConnection,
   Connection,
@@ -36,7 +48,11 @@ interface ConnectionsCtx {
   trees: Record<string, NavGroup[]>;
   treeStatus: Record<string, TreeStatus>;
   linkMap: LinkMap | null;
-  syncing: string | null;
+  /** Connection ids currently syncing. */
+  syncing: Set<string>;
+  /** Whether a sync may start for this connection — false while anything on
+   *  the same credential is running. */
+  canSync: (conn: Connection) => boolean;
   refresh: () => void;
   sync: (conn: Connection) => Promise<void>;
   disconnect: (conn: Connection) => Promise<void>;
@@ -53,7 +69,8 @@ const Ctx = createContext<ConnectionsCtx>({
   trees: {},
   treeStatus: {},
   linkMap: null,
-  syncing: null,
+  syncing: EMPTY_SYNCING as Set<string>,
+  canSync: () => true,
   refresh: () => {},
   sync: async () => {},
   disconnect: async () => {},
@@ -113,7 +130,7 @@ export function ConnectionsProvider({
   const [trees, setTrees] = useState<Record<string, NavGroup[]>>({});
   const [treeStatus, setTreeStatus] = useState<Record<string, TreeStatus>>({});
   const [linkMap, setLinkMap] = useState<LinkMap | null>(null);
-  const [syncing, setSyncing] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState<Set<string>>(new Set());
   const [generation, setGeneration] = useState(0);
 
   const refresh = useCallback(() => setGeneration((g) => g + 1), []);
@@ -153,18 +170,22 @@ export function ConnectionsProvider({
     };
   }, [generation, loadTree]);
 
-  // One sync at a time, workspace-wide. A second request while one is running
-  // is ignored rather than queued: syncs are not idempotent in wall-clock terms
-  // (each opens a manifest row and re-reads the estate), and two overlapping
-  // ones against the same GoHighLevel credential is exactly the traffic pattern
-  // the outbound cap exists to prevent.
-  const syncingRef = useRef<string | null>(null);
+  // Serialised per *credential*, not per workspace.
+  //
+  // 100 GoHighLevel sub-accounts under one account share a single session
+  // token: syncing them at once multiplies outbound load against one
+  // credential, which is the traffic pattern the API's per-credential cap
+  // exists to prevent, and each sync re-reads the whole estate. Two
+  // connections on *different* credentials — a Make account and a GHL one,
+  // or two separate GHL accounts — are genuinely independent and run together.
+  const inFlight = useRef<Set<string>>(new Set());
 
   const sync = useCallback(
     async (conn: Connection) => {
-      if (syncingRef.current) return;
-      syncingRef.current = conn.id;
-      setSyncing(conn.id);
+      const owner = credentialOwner(conn);
+      if (inFlight.current.has(owner)) return;
+      inFlight.current.add(owner);
+      setSyncing((prev) => new Set(prev).add(conn.id));
       try {
         await syncConnection(conn);
         loadTree(conn);
@@ -172,11 +193,20 @@ export function ConnectionsProvider({
           .then(setLinkMap)
           .catch(() => {});
       } finally {
-        syncingRef.current = null;
-        setSyncing(null);
+        inFlight.current.delete(owner);
+        setSyncing((prev) => {
+          const next = new Set(prev);
+          next.delete(conn.id);
+          return next;
+        });
       }
     },
     [loadTree]
+  );
+
+  const canSync = useCallback(
+    (conn: Connection) => !inFlight.current.has(credentialOwner(conn)),
+    []
   );
 
   const disconnect = useCallback(
@@ -205,6 +235,7 @@ export function ConnectionsProvider({
       treeStatus,
       linkMap,
       syncing,
+      canSync,
       refresh,
       sync,
       disconnect,
@@ -218,6 +249,7 @@ export function ConnectionsProvider({
       treeStatus,
       linkMap,
       syncing,
+      canSync,
       refresh,
       sync,
       disconnect,

@@ -108,7 +108,7 @@ function StatusDot({ item }: { item: NavItem }) {
 /** Workflow browser — the side panel for Workflows / Dashboard / System map. */
 export function WorkflowBrowser() {
   const pathname = usePathname();
-  const { connections, trees, treeStatus, syncing, sync, linkMap, loading } = useConnections();
+  const { connections, trees, treeStatus, syncing, canSync, sync, linkMap, loading } = useConnections();
   const index = useWorkflowIndex();
   const [q, setQ] = useState("");
   // Persisted "which folder is open per connection".
@@ -267,8 +267,8 @@ export function WorkflowBrowser() {
                             connection={conn}
                             groups={trees[conn.id] ?? []}
                             status={treeStatus[conn.id] ?? "loading"}
-                            syncing={syncing === conn.id}
-                            busy={syncing !== null}
+                            syncing={syncing.has(conn.id)}
+                            busy={!canSync(conn)}
                             onSync={() => sync(conn)}
                             openFolder={open[conn.id] ?? null}
                             onToggleFolder={(fid) => toggleFolder(conn.id, fid)}
@@ -402,7 +402,7 @@ function ConnectionTree({
   groups: NavGroup[];
   status: "loading" | "ready" | "error";
   syncing: boolean;
-  /** Any connection in the workspace is syncing. */
+  /** Something on the same credential is syncing. */
   busy: boolean;
   onSync: () => void;
   openFolder: string | null;
@@ -466,14 +466,14 @@ function ConnectionTree({
               syncing
                 ? `Syncing ${connector.label} ${connection.displayName}`
                 : busy
-                  ? "Another connection is syncing"
+                  ? "Another sub-account on this credential is syncing"
                   : `Sync ${connector.label} ${connection.displayName} now`
             }
             title={
               syncing
                 ? "Syncing…"
                 : busy
-                  ? "Another connection is syncing — one at a time"
+                  ? "Another sub-account on this credential is syncing"
                   : connection.lastSyncedAt
                     ? `Last synced ${new Date(connection.lastSyncedAt).toLocaleString()}`
                     : "Sync now"

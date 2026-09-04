@@ -46,7 +46,7 @@ function ConnectionRow({
 }: {
   connection: Connection;
   syncing: boolean;
-  /** Any connection in the workspace is syncing. */
+  /** Something on the same credential is syncing. */
   busy: boolean;
   onSync: () => void;
   onDisconnect: () => Promise<void>;
@@ -121,11 +121,11 @@ function ConnectionRow({
           syncing
             ? `Syncing ${connector.label} ${name}`
             : busy
-              ? "Another connection is syncing"
+              ? "Another sub-account on this credential is syncing"
               : `Sync ${connector.label} ${name} now`
         }
         title={
-          syncing ? "Syncing…" : busy ? "Another connection is syncing — one at a time" : "Sync now"
+          syncing ? "Syncing…" : busy ? "Another sub-account on this credential is syncing" : "Sync now"
         }
         className="flex size-[30px] items-center justify-center rounded-control border border-line-strong text-t3 transition-colors not-disabled:cursor-pointer hover:border-t1 hover:text-t1 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-line-strong disabled:hover:text-t3"
       >
@@ -527,7 +527,7 @@ function ProfileCard() {
 }
 
 export default function ConnectionsPage() {
-  const { connections, syncing, sync, disconnect, add, refresh } =
+  const { connections, syncing, canSync, sync, disconnect, add, refresh } =
     useConnections();
   const [watching, setWatching] = useState<ProviderId | null>(null);
   const searchParams = useSearchParams();
@@ -601,8 +601,8 @@ export default function ConnectionsPage() {
                 <ConnectionRow
                   key={conn.id}
                   connection={conn}
-                  syncing={syncing === conn.id}
-                  busy={syncing !== null}
+                  syncing={syncing.has(conn.id)}
+                  busy={!canSync(conn)}
                   onSync={() => sync(conn)}
                   onDisconnect={() => disconnect(conn)}
                 />
