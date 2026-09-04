@@ -37,11 +37,6 @@ import { readStored, useRecentWorkflows, useStoredJson, writeStored } from "@/li
  */
 
 type Sev = "err" | "warn" | null;
-// One spring for anything that reflows as a sync lands, so rows settling in do
-// not each move to their own rhythm. Low stiffness + high damping = it settles
-// without overshoot, which is what makes an updating list feel calm.
-const ROW_SPRING = { type: "spring" as const, stiffness: 420, damping: 38, mass: 0.6 };
-
 const OPEN_KEY = "rippit.browser.open";
 const CONN_KEY = "rippit.browser.connOpen";
 const PROVIDER_ORDER_KEY = "rippit.browser.providerOrder";
@@ -54,10 +49,21 @@ const EMPTY_CONN_ORDER: Record<string, string[]> = {};
 
 /** Stable sort by a persisted id order; ids not yet in the order keep their
  * natural position after the ordered ones. */
+/**
+ * User's saved drag order first, then a deterministic fallback.
+ *
+ * Anything the user has not explicitly ordered must still land in a fixed
+ * place: falling back to arrival order means the sidebar reshuffles whenever
+ * the API returns rows in a different order, which it is entitled to do.
+ */
 function orderBy<T>(items: T[], order: string[], key: (t: T) => string): T[] {
-  if (order.length === 0) return items;
   const idx = new Map(order.map((k, i) => [k, i]));
-  return [...items].sort((a, b) => (idx.get(key(a)) ?? order.length) - (idx.get(key(b)) ?? order.length));
+  return [...items].sort((a, b) => {
+    const ka = key(a);
+    const kb = key(b);
+    const rank = (idx.get(ka) ?? order.length) - (idx.get(kb) ?? order.length);
+    return rank || ka.localeCompare(kb);
+  });
 }
 
 const ROW =
@@ -262,6 +268,7 @@ export function WorkflowBrowser() {
                             groups={trees[conn.id] ?? []}
                             status={treeStatus[conn.id] ?? "loading"}
                             syncing={syncing === conn.id}
+                            busy={syncing !== null}
                             onSync={() => sync(conn)}
                             openFolder={open[conn.id] ?? null}
                             onToggleFolder={(fid) => toggleFolder(conn.id, fid)}
@@ -380,6 +387,7 @@ function ConnectionTree({
   groups,
   status,
   syncing,
+  busy,
   onSync,
   openFolder,
   onToggleFolder,
@@ -394,6 +402,8 @@ function ConnectionTree({
   groups: NavGroup[];
   status: "loading" | "ready" | "error";
   syncing: boolean;
+  /** Any connection in the workspace is syncing. */
+  busy: boolean;
   onSync: () => void;
   openFolder: string | null;
   onToggleFolder: (id: string) => void;
@@ -416,9 +426,18 @@ function ConnectionTree({
         <button
           type="button"
           onClick={onToggle}
+          // Frozen mid-sync: the tree under it is being rewritten, so toggling
+          // would expand rows that are about to be replaced.
+          disabled={syncing}
           aria-expanded={expanded}
-          aria-label={`${expanded ? "Collapse" : "Expand"} ${connector.label} · ${connection.displayName}`}
-          className="flex min-w-0 flex-1 cursor-pointer items-center gap-[6px] border-0 bg-transparent p-0 text-left"
+          aria-label={
+            syncing
+              ? `Syncing ${connector.label} · ${connection.displayName}`
+              : `${expanded ? "Collapse" : "Expand"} ${connector.label} · ${connection.displayName}`
+          }
+          className={`flex min-w-0 flex-1 items-center gap-[6px] border-0 bg-transparent p-0 text-left not-disabled:cursor-pointer ${
+            syncing ? "cursor-default opacity-60" : ""
+          }`}
         >
           <ChevronRight aria-hidden="true" className={`size-[10px] flex-none text-t3 transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] ${expanded ? "rotate-90" : ""}`} />
           <AppPuck app={connector.id} color={connector.brandColor} glyph={connector.glyph} size={15} />
@@ -438,10 +457,28 @@ function ConnectionTree({
           <button
             type="button"
             onClick={onSync}
-            disabled={syncing}
-            aria-label={`Sync ${connector.label} ${connection.displayName} now`}
-            title={connection.lastSyncedAt ? `Last synced ${new Date(connection.lastSyncedAt).toLocaleString()}` : "Sync now"}
-            className="group/sync flex cursor-pointer items-center gap-1 text-t3 transition-colors hover:text-t1 disabled:cursor-default"
+            // Locked while ANY connection is syncing, not just this one: only
+            // one sync runs at a time, so a live-looking button elsewhere would
+            // be a button that silently does nothing.
+            disabled={syncing || busy}
+            aria-busy={syncing}
+            aria-label={
+              syncing
+                ? `Syncing ${connector.label} ${connection.displayName}`
+                : busy
+                  ? "Another connection is syncing"
+                  : `Sync ${connector.label} ${connection.displayName} now`
+            }
+            title={
+              syncing
+                ? "Syncing…"
+                : busy
+                  ? "Another connection is syncing — one at a time"
+                  : connection.lastSyncedAt
+                    ? `Last synced ${new Date(connection.lastSyncedAt).toLocaleString()}`
+                    : "Sync now"
+            }
+            className="group/sync flex items-center gap-1 text-t3 transition-colors hover:text-t1 disabled:cursor-not-allowed disabled:hover:text-t3 not-disabled:cursor-pointer"
           >
             <RefreshCw
               aria-hidden="true"
@@ -457,8 +494,13 @@ function ConnectionTree({
         {dragControls && <Grip controls={dragControls} label={`Drag to reorder ${connection.displayName}`} />}
       </div>
       <Accordion open={expanded}>
-      <div className="ml-[6px]">
-      {status === "loading" && (
+      <div
+        className={`ml-[6px] transition-opacity duration-[var(--dur-fast)] ${
+          syncing ? "pointer-events-none select-none opacity-50" : ""
+        }`}
+        aria-busy={syncing || undefined}
+      >
+      {status === "loading" && total === 0 && (
         <div role="status" aria-label={`Loading ${connector.nouns.workflowPlural}`} className="flex flex-col gap-1 px-1.5 py-0.5">
           {[0, 1, 2].map((i) => (
             <div key={i} aria-hidden="true" className="h-[20px] animate-pulse rounded-row bg-hover motion-reduce:animate-none" />
@@ -473,11 +515,13 @@ function ConnectionTree({
           </button>
         </p>
       )}
-      {status === "ready" && total === 0 && (
-        <p className="px-1.5 py-0.5 text-[11px] italic text-t3">{syncing ? "Syncing…" : `No ${connector.nouns.workflowPlural} synced yet`}</p>
+      {status === "ready" && total === 0 && !syncing && (
+        <p className="px-1.5 py-0.5 text-[11px] italic text-t3">
+          No {connector.nouns.workflowPlural} synced yet
+        </p>
       )}
       {groups.map((g) => (
-        <motion.div key={g.id} layout="position" transition={ROW_SPRING}>
+        <div key={g.id}>
           {groups.length > 1 && (
             <p className="truncate px-1.5 pb-0.5 pt-1 font-mono text-[9.5px] text-t3" title={g.label}>
               {g.label}
@@ -498,7 +542,7 @@ function ConnectionTree({
           {g.items.map((it) => (
             <WorkflowRow key={it.refId} item={it} provider={connection.provider} sevOf={sevOf} changedOf={changedOf} pathname={pathname} indent={false} />
           ))}
-        </motion.div>
+        </div>
       ))}
       </div>
       </Accordion>
@@ -567,9 +611,11 @@ const FolderRows = memo(function FolderRows({
  */
 function Accordion({ open, children }: { open: boolean; children: React.ReactNode }) {
   const reduced = useReducedMotion();
-  // Hidden while moving so the slide clips cleanly; visible once settled, or
-  // it would crop the focus ring on the rows inside.
-  const [clip, setClip] = useState(true);
+  // Motion drives height only while the accordion is opening or closing. Once
+  // settled we hand height back to the browser ("auto") — otherwise every
+  // content change inside an open folder re-runs a height animation, which is
+  // what made rows shift and stretch as a sync landed.
+  const [animating, setAnimating] = useState(false);
   return (
     <AnimatePresence initial={false}>
       {open && (
@@ -590,9 +636,12 @@ function Accordion({ open, children }: { open: boolean; children: React.ReactNod
                   opacity: { duration: 0.15, ease: [0.22, 1, 0.36, 1] },
                 }
           }
-          onAnimationStart={() => setClip(true)}
-          onAnimationComplete={() => setClip(!open)}
-          style={{ overflow: clip ? "hidden" : "visible" }}
+          onAnimationStart={() => setAnimating(true)}
+          onAnimationComplete={() => setAnimating(false)}
+          style={{
+            height: animating || !open ? undefined : "auto",
+            overflow: animating || !open ? "hidden" : "visible",
+          }}
         >
           {children}
         </motion.div>
@@ -619,12 +668,6 @@ const WorkflowRow = memo(function WorkflowRow({
   const href = workflowHref({ source: provider, refId: item.refId });
   const active = pathname === href;
   return (
-    <motion.div
-      layout="position"
-      initial={{ opacity: 0, y: -2 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={ROW_SPRING}
-    >
     <Link
       href={href}
       title={item.name}
@@ -636,6 +679,5 @@ const WorkflowRow = memo(function WorkflowRow({
       <ChangeCount n={changedOf.get(`${provider}:${item.refId}`)} />
       <SevDot sev={sevOf.get(`${provider}:${item.refId}`) ?? null} />
     </Link>
-    </motion.div>
   );
 });

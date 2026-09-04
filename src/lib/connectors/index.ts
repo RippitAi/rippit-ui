@@ -51,3 +51,21 @@ export function badgeTooltip(badge: string): string | null {
   }
   return null;
 }
+
+
+/**
+ * Stable ordering for anything shown in the browser tree.
+ *
+ * Provider listings come back in whatever order the provider felt like, and
+ * that order changes between syncs — so without an explicit sort the sidebar
+ * visibly reshuffles every time an estate is captured. Name first (what the
+ * reader is scanning for), id as the tiebreak so two identically-named
+ * workflows never swap places.
+ */
+export function byName<T extends { name: string; refId: string }>(rows: T[]): T[] {
+  return [...rows].sort(
+    (a, b) =>
+      a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }) ||
+      a.refId.localeCompare(b.refId)
+  );
+}

@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { fetchLinks, LinkMap } from "@/app/lib/api";
@@ -152,8 +153,17 @@ export function ConnectionsProvider({
     };
   }, [generation, loadTree]);
 
+  // One sync at a time, workspace-wide. A second request while one is running
+  // is ignored rather than queued: syncs are not idempotent in wall-clock terms
+  // (each opens a manifest row and re-reads the estate), and two overlapping
+  // ones against the same GoHighLevel credential is exactly the traffic pattern
+  // the outbound cap exists to prevent.
+  const syncingRef = useRef<string | null>(null);
+
   const sync = useCallback(
     async (conn: Connection) => {
+      if (syncingRef.current) return;
+      syncingRef.current = conn.id;
       setSyncing(conn.id);
       try {
         await syncConnection(conn);
@@ -162,6 +172,7 @@ export function ConnectionsProvider({
           .then(setLinkMap)
           .catch(() => {});
       } finally {
+        syncingRef.current = null;
         setSyncing(null);
       }
     },

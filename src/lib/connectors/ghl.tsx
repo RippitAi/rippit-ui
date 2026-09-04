@@ -5,6 +5,7 @@ import {
 } from "@/app/lib/api";
 import StepDetailSections, { describeGhlStep } from "@/components/connectors/ghl/StepDetailPanel";
 import type { ConnectorDescriptor } from "./types";
+import { byName } from "./index";
 
 export const ghlConnector: ConnectorDescriptor = {
   id: "ghl",
@@ -59,13 +60,13 @@ export const ghlConnector: ConnectorDescriptor = {
       {
         id: `location:${conn.externalId}`,
         label: `GHL · ${location}`,
-        items: loose.map(item),
+        items: byName(loose.map(item)),
         folders: [...byFolder.entries()]
           .sort((a, b) => a[1].label.localeCompare(b[1].label))
           .map(([id, bucket]) => ({
             id: `dir:${id}`,
             label: bucket.label,
-            items: bucket.rows.map(item),
+            items: byName(bucket.rows.map(item)),
           })),
       },
     ];

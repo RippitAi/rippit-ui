@@ -172,6 +172,16 @@ export default function ConnectPage() {
 
       {phase === "choosing" && list && (
         <>
+          {list.canEnumerate && list.complete === false && (
+            <p
+              role="status"
+              className="rounded-card border border-[color-mix(in_srgb,var(--warn)_32%,transparent)] bg-[color-mix(in_srgb,var(--warn)_8%,transparent)] px-3.5 py-2.5 text-[12.5px] leading-relaxed text-warn-text"
+            >
+              HighLevel only returned part of your account, so this list may be
+              missing {noun}s. Connect what you see now — opening a missing{" "}
+              {noun} in HighLevel and clicking the bookmark again adds it.
+            </p>
+          )}
           {list.canEnumerate ? (
             <LocationPicker
               containers={list.containers}

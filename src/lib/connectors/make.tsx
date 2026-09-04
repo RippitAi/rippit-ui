@@ -7,6 +7,7 @@ import {
 } from "@/app/lib/api";
 import ModuleDetailSections, { describeMakeModule } from "@/components/connectors/make/ModuleDetailPanel";
 import type { ConnectorDescriptor } from "./types";
+import { byName } from "./index";
 
 export const makeConnector: ConnectorDescriptor = {
   id: "make",
@@ -59,14 +60,16 @@ export const makeConnector: ConnectorDescriptor = {
       {
         id: `org:${conn.externalId}`,
         label: `Make · ${conn.displayName || conn.label || conn.externalId}`,
-        items: hierarchy.teams.flatMap((team) =>
-          team.unfolderedScenarios.map((s) => item(s, team.name, null))
+        items: byName(
+          hierarchy.teams.flatMap((team) =>
+            team.unfolderedScenarios.map((s) => item(s, team.name, null))
+          )
         ),
         folders: hierarchy.teams.flatMap((team) =>
           team.folders.map((f) => ({
             id: `folder:${f.id}`,
             label: multiTeam ? `${team.name} / ${f.name}` : f.name,
-            items: f.scenarios.map((s) => item(s, team.name, f.name)),
+            items: byName(f.scenarios.map((s) => item(s, team.name, f.name))),
           }))
         ),
       },

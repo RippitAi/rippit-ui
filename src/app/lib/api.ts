@@ -837,6 +837,9 @@ export interface ContainerList {
   /** False means the provider gives us no way to list — ask the user for ids.
    *  It does NOT mean the account has none. */
   canEnumerate: boolean;
+  /** False when the ids came from the session token rather than HighLevel's
+   *  listing: a subset, so never present it as the whole account. */
+  complete?: boolean;
   containerNoun: string;
   containers: ContainerRow[];
 }
