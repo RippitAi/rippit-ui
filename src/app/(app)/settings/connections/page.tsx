@@ -18,6 +18,12 @@ import { Check, Copy, KeyRound, LogOut, RefreshCw, Trash2 } from "lucide-react";
 import { getConnector as getConnectorDescriptor } from "@/lib/connectors";
 import type { ProviderId } from "@/lib/connectors/types";
 import { mintPairingCode, PairingCode } from "@/app/lib/api";
+import type { WorkspaceRole } from "@/app/lib/api";
+import {
+  AcceptedTermsList,
+  ConsentGate,
+  useLegalGates,
+} from "@/components/connect/ConsentGate";
 import { useAuth } from "@/components/app/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,10 +75,31 @@ function ConnectionRow({
           {connector.nouns.container} id {connection.externalId}
           {connection.accountName && connection.label && connection.accountName !== connection.label ? ` · ${connection.accountName}` : ""}
           {connection.authType === "oauth" && " · via OAuth (names & status only)"}
-          {connection.authType === "extension" && " · via extension"}
+          {/* auth_type "extension" means "a browser session token" — both the
+              bookmarklet and the extension produce it, so only config tells us
+              which. Say "browser session" when it does not. */}
+          {connection.authType === "extension" &&
+            (connection.capturedVia === "bookmarklet"
+              ? " · via bookmarklet"
+              : connection.capturedVia === "extension"
+                ? " · via extension"
+                : " · via browser session")}
           {connection.lastSyncedAt &&
             ` · synced ${new Date(connection.lastSyncedAt).toLocaleString()}`}
+          {connection.connectedBy?.name && ` · connected by ${connection.connectedBy.name}`}
         </p>
+        {/* The estate only reports itself fresh when the sync actually worked;
+            a failed attempt says so here instead of looking like nothing
+            happened. */}
+        {connection.lastSyncOutcome && connection.lastSyncOutcome !== "ok" && (
+          <p className={`mt-1 text-[12px] ${connection.lastSyncOutcome === "failed" ? "text-err-text" : "text-warn-text"}`}>
+            {connection.lastSyncOutcome === "failed"
+              ? "The last sync failed — nothing was captured, so what you see below is older than it looks."
+              : "The last sync captured some workflows but not all — see which on the Health page."}
+            {connection.lastSyncAttemptAt &&
+              ` Attempted ${new Date(connection.lastSyncAttemptAt).toLocaleString()}.`}
+          </p>
+        )}
         {connection.status === "needs_reauth" && (
           <p className="mt-1 text-[12px] text-warn-text">
             {connector.connect.type === "extension"
@@ -130,6 +157,7 @@ function ConnectionRow({
 }
 
 function PairingCard() {
+  const gates = useLegalGates();
   const [pairing, setPairing] = useState<PairingCode | null>(null);
   const [remaining, setRemaining] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -166,14 +194,22 @@ function PairingCard() {
     <div className="rounded-card border border-line bg-panel px-4 py-4">
       <div className="mb-1 flex items-center gap-2">
         <KeyRound aria-hidden="true" className="size-3.5 text-t3" />
-        <h3 className="text-[13.5px] font-semibold">Extension pairing</h3>
+        <h3 className="text-[13.5px] font-semibold">Chrome extension</h3>
       </div>
       <p className="mb-3 text-[12.5px] leading-relaxed text-t2">
-        To connect a HighLevel location, generate a code and paste it into the
-        Rippit Chrome extension. Codes are single-use and expire after 10
-        minutes.
+        Only needed if you are on the older Rippit Chrome extension. Connecting
+        HighLevel now uses the bookmarklet under <strong>Add a platform</strong>{" "}
+        — no install, and it works in any browser. If you do have the extension,
+        generate a code and paste it in; codes are single-use and expire after
+        10 minutes.
       </p>
 
+      {/* The code is what claims a connection, so this is where consent for the
+          extension path is enforced client-side; the API 403s regardless. */}
+      <ConsentGate
+        slugs={gates?.extension ?? null}
+        intro="Generating a code connects a location through the extension. Read what that does first."
+      >
       {pairing && !expired && (
         <div className="mb-3 flex items-center gap-3">
           <code className="rounded-control border border-line-strong bg-code px-3 py-2 font-mono text-[17px] font-bold tracking-[0.25em]">
@@ -223,6 +259,7 @@ function PairingCard() {
             ? "Generate a new code"
             : "Generate code"}
       </Button>
+      </ConsentGate>
     </div>
   );
 }
@@ -232,6 +269,7 @@ function WorkspaceCard() {
   const { current, workspaces, switchTo, refresh } = useWorkspace();
   const { user } = useAuth();
   const [data, setData] = useState<{ members: WorkspaceMember[]; invites: WorkspaceInvite[] } | null>(null);
+  const [inviteRole, setInviteRole] = useState<WorkspaceRole>("member");
   const [email, setEmail] = useState("");
   const [newName, setNewName] = useState("");
   const [error, setError] = useState("");
@@ -349,7 +387,7 @@ function WorkspaceCard() {
             if (!value) return;
             setError("");
             try {
-              await inviteMember(current.id, value);
+              await inviteMember(current.id, value, inviteRole);
               setEmail("");
               reload();
             } catch (err) {
@@ -365,6 +403,18 @@ function WorkspaceCard() {
             aria-label="Invite member by email"
             className="h-8 rounded-control border-line-strong bg-hover text-[13px]"
           />
+          <select
+            value={inviteRole}
+            onChange={(e) => setInviteRole(e.target.value as WorkspaceRole)}
+            aria-label="Role for the invited member"
+            className="h-8 rounded-control border border-line-strong bg-hover px-2 text-[12.5px] text-t2"
+          >
+            <option value="member">Member</option>
+            {/* Viewers read the estate and change nothing — the role for a
+                client or stakeholder receiving the documentation. */}
+            <option value="viewer">Viewer (read-only)</option>
+            <option value="owner">Owner</option>
+          </select>
           <Button type="submit" disabled={!email.trim()} className="h-8 rounded-control px-3 text-[12.5px] font-semibold">
             Invite
           </Button>
@@ -557,7 +607,7 @@ export default function ConnectionsPage() {
               id="pairing-heading"
               className="mb-2 text-[12px] font-semibold text-t3"
             >
-              Chrome extension
+              Chrome extension (legacy)
             </h2>
             <PairingCard />
           </section>
@@ -580,6 +630,18 @@ export default function ConnectionsPage() {
               Account
             </h2>
             <ProfileCard />
+          </section>
+
+          <section aria-labelledby="terms-heading">
+            <h2
+              id="terms-heading"
+              className="mb-2 text-[12px] font-semibold text-t3"
+            >
+              Terms you have accepted
+            </h2>
+            <div className="rounded-card border border-line bg-panel px-4 py-4">
+              <AcceptedTermsList />
+            </div>
           </section>
         </div>
       </div>

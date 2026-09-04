@@ -5,9 +5,13 @@ export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:800
 
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  /** The raw `detail` from the API. Usually a string, but some errors carry a
+   *  structured body the UI acts on — see `termsRequiredFrom`. */
+  detail: unknown;
+  constructor(message: string, status: number, detail?: unknown) {
     super(message);
     this.status = status;
+    this.detail = detail;
   }
 }
 
@@ -57,7 +61,11 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
       authFailureHandler?.();
     }
     const body = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new ApiError(body.detail || `API error ${res.status}`, res.status);
+    const message =
+      typeof body.detail === "string"
+        ? body.detail
+        : body.detail?.message || `API error ${res.status}`;
+    throw new ApiError(message, res.status, body.detail);
   }
   // Tolerate empty bodies (e.g. 204 from DELETE)
   return res.json().catch(() => undefined as T);
@@ -394,7 +402,9 @@ export function fetchMembers(id: string): Promise<{ members: WorkspaceMember[]; 
   return apiFetch(`/workspaces/${encodeURIComponent(id)}/members`);
 }
 
-export function inviteMember(id: string, email: string, role: "owner" | "member" = "member"): Promise<WorkspaceInvite> {
+export type WorkspaceRole = "owner" | "member" | "viewer";
+
+export function inviteMember(id: string, email: string, role: WorkspaceRole = "member"): Promise<WorkspaceInvite> {
   return apiPost<WorkspaceInvite>(`/workspaces/${encodeURIComponent(id)}/invites`, { email, role });
 }
 
@@ -447,7 +457,7 @@ export function setWorkflowTags(
   });
 }
 
-/** Structural issue from the link map (see implemented/errors.md). */
+/** Structural issue from the link map (see pipeline/errors.md). */
 export interface Issue {
   code: string;
   severity: "error" | "warn" | "info";
@@ -736,6 +746,20 @@ export interface BackendConnectionRow {
   account_name?: string | null;
   /** label ?? account_name ?? external_id — what to call this connection. */
   display_name?: string;
+  /** Last sync *attempt* — moves even when the sync failed, unlike
+   *  last_synced_at which only moves on success. */
+  last_sync_attempt_at?: string | null;
+  last_sync_outcome?: "ok" | "partial" | "failed" | null;
+  /** Whose credential backs this connection. In a shared workspace a GHL
+   *  connection runs on one person's session token. */
+  connectedBy?: { userId: string | null; name: string | null; unclaimed: boolean };
+  /** "account" holds one credential spanning several containers the user picks
+   *  from; "location" is a single synced container. */
+  kind?: "account" | "location";
+  /** The account connection this container's credential comes from. */
+  parent_id?: string | null;
+  /** Non-secret connection settings. Carries `capturedVia` and `accountName`. */
+  config?: Record<string, unknown>;
 }
 
 /** GET /connectors — provider catalog incl. alternative connect paths. */
@@ -778,6 +802,56 @@ export function fetchConnectionWorkflows(
   return apiFetch(`/connections/${connectionId}/workflows`);
 }
 
+/* ─── Account connections & containers ─────────────────────────────────── */
+
+/**
+ * Connect a whole GoHighLevel account with one captured session token.
+ *
+ * The token is scoped to the GHL *user*, not a sub-account, so this stores it
+ * once and the sub-accounts to read are chosen next — rather than capturing the
+ * same credential once per sub-account.
+ */
+export function connectGhlAccount(
+  refreshToken: string,
+  label?: string | null
+): Promise<BackendConnectionRow & { containerNoun?: string }> {
+  return apiPost(`/connections`, {
+    provider: "ghl",
+    kind: "account",
+    label: label ?? null,
+    credentials: { refreshToken },
+    // auth_type will be "extension" either way — it means "a browser session
+    // token". Record which vehicle actually produced it so the UI can say so.
+    config: { capturedVia: "bookmarklet" },
+  });
+}
+
+export interface ContainerRow {
+  externalId: string;
+  name: string | null;
+  connected: boolean;
+  connectionId?: string | null;
+}
+
+export interface ContainerList {
+  /** False means the provider gives us no way to list — ask the user for ids.
+   *  It does NOT mean the account has none. */
+  canEnumerate: boolean;
+  containerNoun: string;
+  containers: ContainerRow[];
+}
+
+export function fetchContainers(connectionId: string): Promise<ContainerList> {
+  return apiFetch(`/connections/${connectionId}/containers`);
+}
+
+export function connectContainers(
+  connectionId: string,
+  containers: { external_id: string; name?: string | null }[]
+): Promise<{ count: number; syncing: boolean; connected: BackendConnectionRow[] }> {
+  return apiPost(`/connections/${connectionId}/containers`, { containers });
+}
+
 /* ─── Extension pairing ────────────────────────────────────────────────── */
 
 export interface PairingCode {
@@ -788,6 +862,139 @@ export interface PairingCode {
 
 export function mintPairingCode(): Promise<PairingCode> {
   return apiPost(`/pairing-codes`);
+}
+
+/* ─── Capture manifest ─────────────────────────────────────────────────── */
+
+export interface SyncRun {
+  id: string;
+  trigger: "manual" | "connect" | "first" | "stale" | "scheduled";
+  startedAt: string;
+  finishedAt: string | null;
+  outcome: "ok" | "partial" | "failed" | null;
+  listed: number;
+  captured: number;
+  skipped: number;
+  failed: number;
+  /** "none" = this provider gives us nothing to diff against, so every sync
+   *  must re-read the whole estate. */
+  revisionSource: string | null;
+  errors: { workflowId?: string; stage?: string; error?: string }[];
+}
+
+export interface SyncRuns {
+  connectionId: string;
+  lastSyncedAt: string | null;
+  lastAttemptAt: string | null;
+  lastOutcome: "ok" | "partial" | "failed" | null;
+  runs: SyncRun[];
+}
+
+export function fetchSyncRuns(connectionId: string, limit = 20): Promise<SyncRuns> {
+  return apiFetch(`/connections/${connectionId}/sync-runs?limit=${limit}`);
+}
+
+/* ─── Health signals ───────────────────────────────────────────────────── */
+
+export interface HealthIssue {
+  code: string;
+  severity: "error" | "warn" | "info";
+  provider: ProviderId;
+  workflowExternalId: string | null;
+  nodeId: string | null;
+  message: string;
+  data: Record<string, unknown> & { capture?: boolean };
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+}
+
+export interface HealthSummary {
+  bySeverity: { error: number; warn: number; info: number };
+  byCode: Record<string, number>;
+  workflowsAffected: number;
+  total: number;
+}
+
+/** `kind: "breakage"` excludes Rippit's own capture failures — the thing that
+ *  must never be mistaken for the estate being broken. */
+export function fetchIssues(
+  kind: "all" | "breakage" | "capture" = "all"
+): Promise<{ issues: HealthIssue[]; summary: HealthSummary }> {
+  return apiFetch(`/issues?kind=${kind}`);
+}
+
+export interface IssueEvent {
+  event: "opened" | "closed";
+  code: string;
+  severity: "error" | "warn" | "info";
+  provider: ProviderId;
+  workflowExternalId: string | null;
+  at: string;
+  capture: boolean;
+}
+
+export function fetchIssueEvents(days = 30): Promise<{ days: number; events: IssueEvent[] }> {
+  return apiFetch(`/issues/events?days=${days}`);
+}
+
+/* ─── Consent & beta terms ─────────────────────────────────────────────── */
+
+export interface LegalDocumentMeta {
+  slug: string;
+  version: string;
+  title: string;
+  summary: string;
+  /** "elevated" = the document describes a risk the user takes on, not just
+   *  terms they agree to. The UI leads with it rather than folding it away. */
+  risk: "standard" | "elevated";
+}
+
+export interface LegalDocument extends LegalDocumentMeta {
+  body: string;
+}
+
+export interface LegalCatalog {
+  documents: LegalDocumentMeta[];
+  /** Which documents each connect path requires, straight from the server —
+   *  so the gate the UI shows can never drift from the gate the API enforces. */
+  gates: { connect: string[]; extension: string[] };
+}
+
+export interface Acceptance {
+  slug: string;
+  version: string;
+  title: string;
+  acceptedAt: string;
+  /** False once a newer version supersedes the one they accepted. */
+  current: boolean;
+}
+
+export function fetchLegalCatalog(): Promise<LegalCatalog> {
+  return apiFetch(`/legal`);
+}
+
+export function fetchLegalDocument(slug: string): Promise<LegalDocument> {
+  return apiFetch(`/legal/${slug}`);
+}
+
+export function acceptLegalDocument(slug: string): Promise<{ slug: string; version: string }> {
+  return apiPost(`/legal/${slug}/accept`);
+}
+
+export function fetchMyAcceptances(): Promise<{ acceptances: Acceptance[] }> {
+  return apiFetch(`/me/acceptances`);
+}
+
+/**
+ * Documents an API call refused on, or null if it failed for another reason.
+ * The connect gates return 403 with the outstanding documents inline, so a
+ * caller can render the consent step without a second round trip.
+ */
+export function termsRequiredFrom(error: unknown): LegalDocumentMeta[] | null {
+  if (!(error instanceof ApiError) || error.status !== 403) return null;
+  const detail = error.detail as { error?: string; documents?: LegalDocumentMeta[] } | undefined;
+  if (detail?.error !== "terms_not_accepted") return null;
+  return detail.documents ?? [];
 }
 
 /* ─── Workflow-level link map ──────────────────────────────────────────── */
@@ -823,6 +1030,20 @@ export interface WorkflowCard {
   changedSince?: { count: number; at: string | null };
   ownerUserId?: string;
   watching?: boolean;
+  /** What Rippit actually has for this workflow, and when it got it. */
+  capture?: CaptureState;
+}
+
+export type CaptureStateName = "current" | "changed" | "never-captured" | "failed";
+
+export interface CaptureState {
+  state: CaptureStateName;
+  /** When the content shown was last captured successfully. */
+  at: string | null;
+  attemptedAt: string | null;
+  error: string | null;
+  /** Set when the workflow no longer exists in the platform. */
+  deletedUpstreamAt: string | null;
 }
 
 /** An asset referenced by more than one workflow ("both touch Sheet X"). */

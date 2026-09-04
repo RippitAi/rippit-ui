@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Bookmark,
   ChevronRight,
@@ -12,7 +12,14 @@ import {
   Search,
   TriangleAlert,
 } from "lucide-react";
-import { Reorder, useDragControls, type DragControls } from "framer-motion";
+import {
+  AnimatePresence,
+  Reorder,
+  motion,
+  useDragControls,
+  useReducedMotion,
+  type DragControls,
+} from "framer-motion";
 import { useConnections, useWorkflowIndex } from "@/components/app/ConnectionsProvider";
 import { getConnector } from "@/lib/connectors";
 import type { NavFolder, NavGroup, NavItem, ProviderId } from "@/lib/connectors/types";
@@ -20,7 +27,7 @@ import type { Connection } from "@/app/lib/connections-store";
 import { workflowHref } from "@/lib/portals";
 import { fetchViews, SavedView } from "@/app/lib/api";
 import { AppPuck } from "@/components/shared/AppPuck";
-import { useRecentWorkflows, useStoredJson, writeStored } from "@/lib/stored";
+import { readStored, useRecentWorkflows, useStoredJson, writeStored } from "@/lib/stored";
 
 /*
  * 206px workflow browser — folders are the browsing unit (hundreds of
@@ -30,6 +37,11 @@ import { useRecentWorkflows, useStoredJson, writeStored } from "@/lib/stored";
  */
 
 type Sev = "err" | "warn" | null;
+// One spring for anything that reflows as a sync lands, so rows settling in do
+// not each move to their own rhythm. Low stiffness + high damping = it settles
+// without overshoot, which is what makes an updating list feel calm.
+const ROW_SPRING = { type: "spring" as const, stiffness: 420, damping: 38, mass: 0.6 };
+
 const OPEN_KEY = "rippit.browser.open";
 const CONN_KEY = "rippit.browser.connOpen";
 const PROVIDER_ORDER_KEY = "rippit.browser.providerOrder";
@@ -95,11 +107,22 @@ export function WorkflowBrowser() {
   const [q, setQ] = useState("");
   // Persisted "which folder is open per connection".
   const open = useStoredJson<Record<string, string | null>>(OPEN_KEY, EMPTY_OPEN);
-  const toggleFolder = (connId: string, folderId: string) =>
-    writeStored(OPEN_KEY, { ...open, [connId]: open[connId] === folderId ? null : folderId });
+  // Read the current value at call time rather than closing over it: these
+  // identities then never change, which is what lets the memoised rows below
+  // skip re-rendering a whole estate when one folder toggles.
+  const toggleFolder = useCallback((connId: string, folderId: string) => {
+    const current = readStored<Record<string, string | null>>(OPEN_KEY, EMPTY_OPEN);
+    writeStored(OPEN_KEY, {
+      ...current,
+      [connId]: current[connId] === folderId ? null : folderId,
+    });
+  }, []);
   // Organizations / locations collapse too (default open).
   const connOpen = useStoredJson<Record<string, boolean>>(CONN_KEY, EMPTY_CONN);
-  const toggleConn = (connId: string) => writeStored(CONN_KEY, { ...connOpen, [connId]: !(connOpen[connId] ?? true) });
+  const toggleConn = useCallback((connId: string) => {
+    const current = readStored<Record<string, boolean>>(CONN_KEY, EMPTY_CONN);
+    writeStored(CONN_KEY, { ...current, [connId]: !(current[connId] ?? true) });
+  }, []);
   const [views, setViews] = useState<SavedView[]>([]);
   const recentAll = useRecentWorkflows();
   const recent = recentAll.slice(0, 5);
@@ -420,13 +443,20 @@ function ConnectionTree({
             title={connection.lastSyncedAt ? `Last synced ${new Date(connection.lastSyncedAt).toLocaleString()}` : "Sync now"}
             className="group/sync flex cursor-pointer items-center gap-1 text-t3 transition-colors hover:text-t1 disabled:cursor-default"
           >
-            <RefreshCw aria-hidden="true" className={`size-[9px] ${syncing ? "spin motion-reduce:animate-none" : "opacity-0 transition-opacity group-hover/sync:opacity-100"}`} />
-            <span aria-hidden="true" className="tabular font-mono text-[9px]">{syncing ? "syncing" : total}</span>
+            <RefreshCw
+              aria-hidden="true"
+              className={`size-[9px] transition-opacity ${
+                syncing ? "spin motion-reduce:animate-none" : "opacity-60 group-hover/sync:opacity-100"
+              }`}
+            />
+            <span aria-hidden="true" className="tabular font-mono text-[9px]">
+              {syncing ? "syncing" : total}
+            </span>
           </button>
         )}
         {dragControls && <Grip controls={dragControls} label={`Drag to reorder ${connection.displayName}`} />}
       </div>
-      {!expanded ? null : (
+      <Accordion open={expanded}>
       <div className="ml-[6px]">
       {status === "loading" && (
         <div role="status" aria-label={`Loading ${connector.nouns.workflowPlural}`} className="flex flex-col gap-1 px-1.5 py-0.5">
@@ -447,7 +477,7 @@ function ConnectionTree({
         <p className="px-1.5 py-0.5 text-[11px] italic text-t3">{syncing ? "Syncing…" : `No ${connector.nouns.workflowPlural} synced yet`}</p>
       )}
       {groups.map((g) => (
-        <div key={g.id}>
+        <motion.div key={g.id} layout="position" transition={ROW_SPRING}>
           {groups.length > 1 && (
             <p className="truncate px-1.5 pb-0.5 pt-1 font-mono text-[9.5px] text-t3" title={g.label}>
               {g.label}
@@ -468,15 +498,15 @@ function ConnectionTree({
           {g.items.map((it) => (
             <WorkflowRow key={it.refId} item={it} provider={connection.provider} sevOf={sevOf} changedOf={changedOf} pathname={pathname} indent={false} />
           ))}
-        </div>
+        </motion.div>
       ))}
       </div>
-      )}
+      </Accordion>
     </div>
   );
 }
 
-function FolderRows({
+const FolderRows = memo(function FolderRows({
   folder,
   provider,
   open,
@@ -514,18 +544,64 @@ function FolderRows({
         <SevDot sev={sev} />
         <span className="tabular font-mono text-[9px] text-t3">{folder.items.length}</span>
       </button>
-      {open && (
+      <Accordion open={open}>
         <div className="my-px mb-[3px]">
           {folder.items.map((it) => (
             <WorkflowRow key={it.refId} item={it} provider={provider} sevOf={sevOf} changedOf={changedOf} pathname={pathname} indent />
           ))}
         </div>
-      )}
+      </Accordion>
     </div>
+  );
+});
+
+/**
+ * Height-and-fade expand, the one shared accordion in the browser column.
+ *
+ * `initial={false}` so nothing animates on first paint — a sidebar that
+ * unfurls every open folder on load looks broken, not polished.
+ *
+ * Height is animated to `auto`, which means Motion measures the content each
+ * time it opens. That is fine at this scale (a folder is tens of rows, not
+ * thousands) and is what keeps the row heights honest when names wrap.
+ */
+function Accordion({ open, children }: { open: boolean; children: React.ReactNode }) {
+  const reduced = useReducedMotion();
+  // Hidden while moving so the slide clips cleanly; visible once settled, or
+  // it would crop the focus ring on the rows inside.
+  const [clip, setClip] = useState(true);
+  return (
+    <AnimatePresence initial={false}>
+      {open && (
+        <motion.div
+          key="body"
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: "auto", opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={
+            reduced
+              ? { duration: 0 }
+              : {
+                  // Matches --dur / --ease-out in globals.css, so the sidebar
+                  // moves like the rest of the app rather than to its own clock.
+                  height: { duration: 0.22, ease: [0.22, 1, 0.36, 1] },
+                  // Fade slightly faster than the slide, so content is legible
+                  // before the row stops moving.
+                  opacity: { duration: 0.15, ease: [0.22, 1, 0.36, 1] },
+                }
+          }
+          onAnimationStart={() => setClip(true)}
+          onAnimationComplete={() => setClip(!open)}
+          style={{ overflow: clip ? "hidden" : "visible" }}
+        >
+          {children}
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
-function WorkflowRow({
+const WorkflowRow = memo(function WorkflowRow({
   item,
   provider,
   sevOf,
@@ -543,6 +619,12 @@ function WorkflowRow({
   const href = workflowHref({ source: provider, refId: item.refId });
   const active = pathname === href;
   return (
+    <motion.div
+      layout="position"
+      initial={{ opacity: 0, y: -2 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={ROW_SPRING}
+    >
     <Link
       href={href}
       title={item.name}
@@ -554,5 +636,6 @@ function WorkflowRow({
       <ChangeCount n={changedOf.get(`${provider}:${item.refId}`)} />
       <SevDot sev={sevOf.get(`${provider}:${item.refId}`) ?? null} />
     </Link>
+    </motion.div>
   );
-}
+});

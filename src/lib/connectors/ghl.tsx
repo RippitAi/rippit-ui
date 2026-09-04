@@ -22,12 +22,12 @@ export const ghlConnector: ConnectorDescriptor = {
     container: "location",
   },
   connect: {
-    type: "extension",
+    type: "bookmarklet",
     instructions: [
-      "Install the Rippit Chrome extension.",
-      "Open your GoHighLevel location in another tab and log in.",
-      "Click the extension and choose “Connect this location”.",
-      "Come back here — the connection appears automatically.",
+      "Drag the button below to your bookmarks bar.",
+      "Open GoHighLevel in another tab and sign in.",
+      "Click the Rippit bookmark — you’ll land back here.",
+      "Choose which sub-accounts to connect.",
     ],
   },
 

@@ -20,6 +20,8 @@ import { workflowHref } from "@/lib/portals";
 import { AppPuck } from "@/components/shared/AppPuck";
 import { StatusPill } from "@/components/shared/StatusPill";
 import { RowCard, ViewBar, ViewBody, ViewTitle } from "@/components/views/ViewFrame";
+import { CaptureBadge } from "@/components/shared/CaptureBadge";
+import type { CaptureState } from "@/app/lib/api";
 import { useCountUp } from "@/lib/useCountUp";
 
 /*
@@ -52,7 +54,7 @@ function Stat({ label, value, icon: Icon, delay, danger }: { label: string; valu
   );
 }
 
-function WorkflowRow({ workflow, tags, lastRun, changed, accountName }: { workflow: WorkflowIndexEntry; tags?: Tag[]; lastRun?: LastRun; changed?: number; accountName?: string }) {
+function WorkflowRow({ workflow, tags, lastRun, changed, accountName, capture }: { workflow: WorkflowIndexEntry; tags?: Tag[]; lastRun?: LastRun; changed?: number; accountName?: string; capture?: CaptureState }) {
   const connector = getConnector(workflow.provider);
   const tone = toneOf(workflow);
   const folder = workflow.groupPath.length > 1 ? workflow.groupPath[workflow.groupPath.length - 1] : null;
@@ -78,6 +80,9 @@ function WorkflowRow({ workflow, tags, lastRun, changed, accountName }: { workfl
           {tags.length > 2 && <span className="text-[10.5px] text-t3">+{tags.length - 2}</span>}
         </span>
       )}
+      {/* Rippit failing to read is shown separately from the estate being
+          broken — never merged into the status pill. */}
+      <CaptureBadge capture={capture} compact />
       {lastRun && (lastRun.status === "error" || lastRun.status === "incomplete") && <LastRunChip status={lastRun.status} at={lastRun.at} />}
       {changed ? <StatusPill pill={{ label: String(changed), tone: "info" }} dot={false} /> : null}
       <StatusPill pill={{ label: tone, tone: PILL_TONE[tone] }} />
@@ -138,8 +143,8 @@ export default function DashboardPage() {
   }, [viewId]);
 
   const byKey = useMemo(() => {
-    const m = new Map<string, { owner?: string; watching?: boolean; changed?: number; lastRun?: LastRun; tags?: Tag[] }>();
-    for (const w of linkMap?.workflows ?? []) m.set(`${w.source}:${w.refId}`, { owner: w.ownerUserId, watching: w.watching, changed: w.changedSince?.count, lastRun: w.lastRun, tags: w.tags });
+    const m = new Map<string, { owner?: string; watching?: boolean; changed?: number; lastRun?: LastRun; tags?: Tag[]; capture?: CaptureState }>();
+    for (const w of linkMap?.workflows ?? []) m.set(`${w.source}:${w.refId}`, { owner: w.ownerUserId, watching: w.watching, changed: w.changedSince?.count, lastRun: w.lastRun, tags: w.tags, capture: w.capture });
     return m;
   }, [linkMap]);
   const accountOf = useMemo(() => new Map(connections.map((c) => [c.id, c.displayName])), [connections]);
@@ -295,7 +300,7 @@ export default function DashboardPage() {
                   {!isCollapsed &&
                     g.items.map((w) => {
                       const k = byKey.get(`${w.provider}:${w.refId}`);
-                      return <WorkflowRow key={`${g.id}|${w.provider}:${w.refId}`} workflow={w} tags={k?.tags} lastRun={k?.lastRun} changed={k?.changed} accountName={accountOf.get(w.connectionId)} />;
+                      return <WorkflowRow key={`${g.id}|${w.provider}:${w.refId}`} workflow={w} tags={k?.tags} lastRun={k?.lastRun} changed={k?.changed} accountName={accountOf.get(w.connectionId)} capture={k?.capture} />;
                     })}
                 </section>
               );
