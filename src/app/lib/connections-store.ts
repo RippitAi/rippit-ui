@@ -23,6 +23,9 @@ export interface Connection {
   /** Which vehicle captured the credential. `authType: "extension"` only says
    *  it is a browser session — the bookmarklet produces the same auth_type. */
   capturedVia?: "bookmarklet" | "extension";
+  /** The account connection this one's credential comes from. Sub-accounts
+   *  under one GoHighLevel account share a single session token. */
+  parentId?: string | null;
   /** Last attempt, and how it went. `lastSyncedAt` only moves on success, so
    *  a connection failing every sync shows an attempt but no fresh sync. */
   lastSyncAttemptAt?: string | null;
@@ -43,6 +46,7 @@ function fromBackend(c: BackendConnectionRow): Connection {
     authType: c.auth_type,
     capturedVia: (c.config as { capturedVia?: "bookmarklet" | "extension" } | undefined)
       ?.capturedVia,
+    parentId: c.parent_id ?? null,
     lastSyncAttemptAt: c.last_sync_attempt_at ?? null,
     lastSyncOutcome: c.last_sync_outcome ?? null,
     connectedBy: c.connectedBy,
