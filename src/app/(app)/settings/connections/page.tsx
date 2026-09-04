@@ -40,11 +40,14 @@ import type { Connection } from "@/app/lib/connections-store";
 function ConnectionRow({
   connection,
   syncing,
+  busy,
   onSync,
   onDisconnect,
 }: {
   connection: Connection;
   syncing: boolean;
+  /** Any connection in the workspace is syncing. */
+  busy: boolean;
   onSync: () => void;
   onDisconnect: () => Promise<void>;
 }) {
@@ -110,16 +113,28 @@ function ConnectionRow({
       </div>
       <button
         onClick={onSync}
-        disabled={syncing}
-        aria-label={`Sync ${connector.label} ${name} now`}
-        className="flex size-[30px] cursor-pointer items-center justify-center rounded-control border border-line-strong text-t3 transition-colors hover:border-t1 hover:text-t1 disabled:cursor-default disabled:opacity-50"
+        // Locked while ANY connection is syncing: only one runs at a time, so
+        // a live-looking button elsewhere would be one that does nothing.
+        disabled={syncing || busy}
+        aria-busy={syncing}
+        aria-label={
+          syncing
+            ? `Syncing ${connector.label} ${name}`
+            : busy
+              ? "Another connection is syncing"
+              : `Sync ${connector.label} ${name} now`
+        }
+        title={
+          syncing ? "Syncing…" : busy ? "Another connection is syncing — one at a time" : "Sync now"
+        }
+        className="flex size-[30px] items-center justify-center rounded-control border border-line-strong text-t3 transition-colors not-disabled:cursor-pointer hover:border-t1 hover:text-t1 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-line-strong disabled:hover:text-t3"
       >
         <RefreshCw
           aria-hidden="true"
           className={`size-3.5 ${syncing ? "animate-spin motion-reduce:animate-none" : ""}`}
         />
       </button>
-      {confirming ? (
+      {confirming && !busy ? (
         <span className="flex items-center gap-2 text-[12px]">
           <button
             onClick={async () => {
@@ -146,8 +161,17 @@ function ConnectionRow({
       ) : (
         <button
           onClick={() => setConfirming(true)}
-          aria-label={`Disconnect ${connector.label} ${name}`}
-          className="flex size-[30px] cursor-pointer items-center justify-center rounded-control border border-line-strong text-t3 transition-colors hover:border-err hover:text-err-text"
+          // No destructive action mid-sync: deleting a connection while its
+          // estate is being captured leaves the manifest and workflow rows
+          // pointing at something that no longer exists.
+          disabled={busy}
+          aria-label={
+            busy
+              ? "Syncing — disconnect is unavailable"
+              : `Disconnect ${connector.label} ${name}`
+          }
+          title={busy ? "Syncing — wait for it to finish" : "Disconnect"}
+          className="flex size-[30px] items-center justify-center rounded-control border border-line-strong text-t3 transition-colors not-disabled:cursor-pointer hover:border-err hover:text-err-text disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-line-strong disabled:hover:text-t3"
         >
           <Trash2 aria-hidden="true" className="size-3.5" />
         </button>
@@ -578,6 +602,7 @@ export default function ConnectionsPage() {
                   key={conn.id}
                   connection={conn}
                   syncing={syncing === conn.id}
+                  busy={syncing !== null}
                   onSync={() => sync(conn)}
                   onDisconnect={() => disconnect(conn)}
                 />
